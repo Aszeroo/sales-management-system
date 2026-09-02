@@ -26,6 +26,15 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
   const { isAdmin, user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [salesList, setSalesList] = useState<Sales[]>([]);
+  const [mySalesId, setMySalesId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAdmin && user?.id) {
+      salesService.getByUserId(user.id).then((s) => {
+        if (s) setMySalesId(s.id);
+      });
+    }
+  }, [isAdmin, user]);
 
   const customerSchema = z.object({
     customer_name: z.string().min(1, t('validation.required')),
@@ -78,11 +87,11 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
         email: '',
         address: '',
         description: '',
-        sales_id: '',
+        sales_id: mySalesId || '',
         status: 'active',
       });
     }
-  }, [customer, isAdmin, reset]);
+  }, [customer, isAdmin, reset, mySalesId]);
 
   const onSubmit = async (data: CustomerFormData) => {
     setLoading(true);

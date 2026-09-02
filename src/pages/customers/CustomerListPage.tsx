@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Eye, Pencil, Trash2, Plus, BriefcaseBusiness } from 'lucide-react';
 import { customerService } from '@/services/customer.service';
+import { salesService } from '@/services/sales.service';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -18,17 +19,24 @@ import { CustomerFormModal } from './CustomerFormModal';
 
 export default function CustomerListPage() {
   const { t } = useTranslation();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const [customers, setCustomers] = useState<CustomerWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<CustomerWithCounts | null>(null);
+  const [mySalesId, setMySalesId] = useState<string | null>(null);
 
   useEffect(() => {
     loadCustomers();
-  }, []);
+    // Get current user's sales_id for permission checks
+    if (!isAdmin && user?.id) {
+      salesService.getByUserId(user.id).then((s) => {
+        if (s) setMySalesId(s.id);
+      });
+    }
+  }, [isAdmin, user]);
 
   async function loadCustomers() {
     try {
@@ -94,12 +102,10 @@ export default function CustomerListPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('customerPage.title')}</h1>
-        {isAdmin && (
-          <Button onClick={handleCreate}>
-            <Plus size={18} />
-            {t('customerPage.addCustomer')}
-          </Button>
-        )}
+        <Button onClick={handleCreate}>
+          <Plus size={18} />
+          {t('customerPage.addCustomer')}
+        </Button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -168,7 +174,7 @@ export default function CustomerListPage() {
                   <Eye size={14} />
                   {t('common.view')}
                 </Link>
-                {isAdmin && (
+                {(isAdmin || c.sales_id === mySalesId) && (
                   <>
                     <button
                       onClick={() => handleEdit(c)}
