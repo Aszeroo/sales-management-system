@@ -299,13 +299,8 @@ function SalesFormModal({
         if (authError) throw authError;
 
         if (authData.user) {
-          // Create profile
-          await supabase.from('profiles').insert({
-            id: authData.user.id,
-            full_name: data.full_name,
-          });
-
-          // Create sales record
+          // Profile is auto-created by the on_auth_user_created trigger
+          // Just create the sales record
           await salesService.create({
             user_id: authData.user.id,
             sales_code: data.sales_code,
@@ -319,7 +314,14 @@ function SalesFormModal({
       Swal.fire(t('common.success'), '', 'success');
       onSuccess();
     } catch (err) {
-      Swal.fire(t('common.error'), (err as Error).message || '', 'error');
+      const msg = (err as Error).message || '';
+      let detail = msg;
+      if (msg.includes('rate limit')) {
+        detail = 'Supabase email rate limit exceeded. Please disable email confirmation in Supabase Dashboard → Authentication → Providers → Email → Confirm email = OFF, then try again.';
+      } else if (msg.includes('already been registered')) {
+        detail = 'This email is already registered. Please use a different email.';
+      }
+      Swal.fire(t('common.error'), detail, 'error');
     } finally {
       setLoading(false);
     }
