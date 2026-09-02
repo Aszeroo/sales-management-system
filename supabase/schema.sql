@@ -246,14 +246,29 @@ CREATE POLICY "Sales can delete own projects" ON projects
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Auto-confirm email so new users can log in immediately
-  UPDATE auth.users
-  SET email_confirmed_at = COALESCE(email_confirmed_at, NOW())
-  WHERE id = NEW.id;
-
-  -- Create profile
+  -- Create profile (with ON CONFLICT for safety)
   INSERT INTO profiles (id, full_name)
-  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data ->> 'full_name', ''));
+  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data ->> 'full_name', ''))
+  ON CONFLICT (id) DO NOTHING;
+
+  -- Auto-create sales record if metadata has required fields
+  -- SECURITY DEFINER bypasses RLS
+  IF (NEW.raw_user_meta_data ->> 'role') = 'sales'
+     AND (NEW.raw_user_meta_data ->> 'sales_code') IS NOT NULL
+     AND (NEW.raw_user_meta_data ->> 'username') IS NOT NULL
+  THEN
+    INSERT INTO sales (user_id, sales_code, full_name, username, email, status)
+    VALUES (
+      NEW.id,
+      NEW.raw_user_meta_data ->> 'sales_code',
+      COALESCE(NEW.raw_user_meta_data ->> 'full_name', ''),
+      NEW.raw_user_meta_data ->> 'username',
+      NEW.email,
+      'active'
+    )
+    ON CONFLICT DO NOTHING;
+  END IF;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

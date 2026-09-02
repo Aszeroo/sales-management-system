@@ -3,33 +3,35 @@
 -- Run ENTIRE script in Supabase SQL Editor
 -- ============================================
 -- This fixes:
--- 1. "new row violates row-level security policy for table sales"
--- 2. Admin can't see newly created sales users
--- 3. Auto-creates sales record during user signup
+-- 1. "Database error saving new user" (UPDATE auth.users in trigger)
+-- 2. "new row violates row-level security policy for table sales"
+-- 3. Admin can't see newly created sales users
+-- ============================================
+-- IMPORTANT: For email confirmation, turn OFF "Confirm email" in
+-- Supabase Dashboard → Authentication → Settings → Email
+-- Do NOT use UPDATE auth.users inside the trigger!
 -- ============================================
 
 
--- ===== STEP 1: Fix the handle_new_user trigger =====
--- The trigger now auto-creates sales record from signUp metadata
--- SECURITY DEFINER bypasses RLS, so INSERT always works
-
+-- ===== STEP 1: Drop old trigger and function FIRST =====
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS handle_new_user();
+
+
+-- ===== STEP 2: Create FIXED trigger function =====
+-- NO UPDATE on auth.users — that causes "Database error saving new user"
+-- SECURITY DEFINER bypasses RLS for profile + sales creation
 
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Auto-confirm email so users can log in immediately
-  UPDATE auth.users
-  SET email_confirmed_at = COALESCE(email_confirmed_at, NOW())
-  WHERE id = NEW.id;
-
-  -- Create profile
+  -- Create profile (with ON CONFLICT for safety)
   INSERT INTO profiles (id, full_name)
   VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data ->> 'full_name', ''))
   ON CONFLICT (id) DO NOTHING;
 
   -- Auto-create sales record if metadata has required fields
-  -- This bypasses RLS because the function is SECURITY DEFINER
+  -- SECURITY DEFINER bypasses RLS, so INSERT always works
   IF (NEW.raw_user_meta_data ->> 'role') = 'sales'
      AND (NEW.raw_user_meta_data ->> 'sales_code') IS NOT NULL
      AND (NEW.raw_user_meta_data ->> 'username') IS NOT NULL
@@ -42,33 +44,29 @@ BEGIN
       NEW.raw_user_meta_data ->> 'username',
       NEW.email,
       'active'
-    );
+    )
+    ON CONFLICT DO NOTHING;
   END IF;
 
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Recreate the trigger
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
 
--- ===== STEP 2: Add missing RLS policies for sales table =====
--- Defense in depth: even if trigger is bypassed, sales users can manage their own record
-
--- Drop existing policies to avoid conflicts
+-- ===== STEP 3: Add missing RLS policies for sales table =====
 DO $$
 BEGIN
-  -- Drop INSERT policy if exists
   DROP POLICY IF EXISTS "Sales can insert own sales record" ON sales;
-  -- Drop UPDATE policy if exists
   DROP POLICY IF EXISTS "Sales can update own sales record" ON sales;
-EXCEPTION WHEN OTHERS THEN
-  NULL;
+EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
--- Sales users can INSERT their own sales record (user_id must match auth.uid)
+-- Sales users can INSERT their own sales record
 CREATE POLICY "Sales can insert own sales record" ON sales
   FOR INSERT WITH CHECK (
     get_user_role() = 'sales' AND user_id = auth.uid()
@@ -81,7 +79,14 @@ CREATE POLICY "Sales can update own sales record" ON sales
   );
 
 
--- ===== STEP 3: Ensure all existing users have profiles =====
+-- ===== STEP 4: Confirm ALL unconfirmed users =====
+-- Do this OUTSIDE the trigger to avoid recursive issues
+UPDATE auth.users
+SET email_confirmed_at = NOW()
+WHERE email_confirmed_at IS NULL;
+
+
+-- ===== STEP 5: Ensure all users have profiles =====
 INSERT INTO profiles (id, full_name)
 SELECT id, COALESCE(raw_user_meta_data ->> 'full_name', '')
 FROM auth.users
@@ -89,11 +94,12 @@ WHERE id NOT IN (SELECT id FROM profiles)
 ON CONFLICT (id) DO NOTHING;
 
 
--- ===== STEP 4: Ensure all sales-role users have sales records =====
--- This catches users created while the trigger was broken
+-- ===== STEP 6: Ensure all sales-role users have sales records =====
 DO $$
 DECLARE
   r RECORD;
+  gen_code TEXT;
+  gen_username TEXT;
 BEGIN
   FOR r IN
     SELECT au.id, au.email,
@@ -106,41 +112,43 @@ BEGIN
         SELECT 1 FROM sales s WHERE s.user_id = au.id AND s.deleted_at IS NULL
       )
   LOOP
-    -- Generate a sales_code and username if not in metadata
+    -- Generate fallback values
+    gen_code := COALESCE(r.sales_code, 'S' || REPLACE(r.id::TEXT, '-', '') || EXTRACT(EPOCH FROM NOW())::INT::TEXT);
+    gen_username := COALESCE(r.username, SPLIT_PART(r.email, '@', 1));
+
     INSERT INTO sales (user_id, sales_code, full_name, username, email, status)
-    VALUES (
-      r.id,
-      COALESCE(r.sales_code, 'S' || LPAD(EXTRACT(EPOCH FROM NOW())::TEXT, 10, '0')),
-      COALESCE(r.full_name, ''),
-      COALESCE(r.username, SPLIT_PART(r.email, '@', 1)),
-      r.email,
-      'active'
-    )
+    VALUES (r.id, gen_code, COALESCE(r.full_name, ''), gen_username, r.email, 'active')
     ON CONFLICT DO NOTHING;
 
-    -- Also update the user's metadata with the generated fields
+    -- Update metadata so the app has the fields
     UPDATE auth.users
-    SET raw_user_meta_data = raw_user_meta_data
-      || jsonb_build_object(
-        'sales_code', COALESCE(r.sales_code, (SELECT sales_code FROM sales WHERE user_id = r.id LIMIT 1)),
-        'username', COALESCE(r.username, (SELECT username FROM sales WHERE user_id = r.id LIMIT 1))
-      )
+    SET raw_user_meta_data = raw_user_meta_data || jsonb_build_object(
+      'sales_code', gen_code,
+      'username', gen_username
+    )
     WHERE id = r.id;
   END LOOP;
 END $$;
 
 
--- ===== STEP 5: Confirm ALL unconfirmed users =====
-UPDATE auth.users
-SET email_confirmed_at = NOW()
-WHERE email_confirmed_at IS NULL;
-
-
--- ===== STEP 6: Verify =====
+-- ===== STEP 7: Verify =====
 DO $$
+DECLARE
+  trigger_count INT;
+  policy_count INT;
+  profile_count INT;
+  sales_count INT;
 BEGIN
+  SELECT COUNT(*) INTO trigger_count FROM pg_trigger WHERE tgname = 'on_auth_user_created';
+  SELECT COUNT(*) INTO policy_count FROM pg_policies WHERE tablename = 'sales';
+  SELECT COUNT(*) INTO profile_count FROM profiles;
+  SELECT COUNT(*) INTO sales_count FROM sales WHERE deleted_at IS NULL;
+
   RAISE NOTICE '=== Fix Applied Successfully ===';
-  RAISE NOTICE 'Trigger: handle_new_user now auto-creates sales records from signUp metadata';
-  RAISE NOTICE 'RLS: Added INSERT and UPDATE policies for sales users on sales table';
-  RAISE NOTICE 'Data: All users now have profiles and sales records (if role=sales)';
+  RAISE NOTICE 'Trigger exists: % (should be 1)', trigger_count;
+  RAISE NOTICE 'Sales RLS policies: % (should be 3+)', policy_count;
+  RAISE NOTICE 'Total profiles: %', profile_count;
+  RAISE NOTICE 'Total active sales: %', sales_count;
+  RAISE NOTICE '';
+  RAISE NOTICE 'IMPORTANT: Make sure "Confirm email" is OFF in Supabase Dashboard → Authentication → Settings';
 END $$;
