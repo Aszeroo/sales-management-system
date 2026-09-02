@@ -284,7 +284,11 @@ function SalesFormModal({
           status: data.status,
         });
       } else {
+        // Save admin session before signUp (signUp auto-logs in the new user)
+        const { data: { session: adminSession } } = await supabase.auth.getSession();
+
         // Create new sales user via Supabase auth
+        // Pass sales_code & username in metadata so the trigger auto-creates the sales record
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: data.email,
           password: data.password || 'tempPassword123',
@@ -292,33 +296,43 @@ function SalesFormModal({
             data: {
               role: 'sales',
               full_name: data.full_name,
+              sales_code: data.sales_code,
+              username: data.username,
             },
           },
         });
 
         if (authError) throw authError;
 
-        if (authData.user) {
-          // Ensure profile exists (trigger should create it, but create as fallback)
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .upsert(
-              { id: authData.user.id, full_name: data.full_name },
-              { onConflict: 'id', ignoreDuplicates: true }
-            );
-          if (profileError) {
-            console.error('Profile creation fallback failed:', profileError);
-          }
-
-          // Create the sales record
-          await salesService.create({
-            user_id: authData.user.id,
-            sales_code: data.sales_code,
-            full_name: data.full_name,
-            username: data.username,
-            email: data.email,
-            status: data.status,
+        // Restore admin session (signUp auto-logged in the new user)
+        if (adminSession) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: adminSession.access_token,
+            refresh_token: adminSession.refresh_token,
           });
+          if (sessionError) {
+            console.error('Failed to restore admin session:', sessionError);
+            // Fallback: sign out and redirect to login
+            await supabase.auth.signOut();
+            window.location.href = '/login';
+            return;
+          }
+        }
+
+        if (authData.user) {
+          // The trigger should have already created the sales record.
+          // Check if it exists; if not, create it as admin (fallback).
+          const existing = await salesService.getByUserId(authData.user.id);
+          if (!existing) {
+            await salesService.create({
+              user_id: authData.user.id,
+              sales_code: data.sales_code,
+              full_name: data.full_name,
+              username: data.username,
+              email: data.email,
+              status: data.status,
+            });
+          }
         }
       }
       Swal.fire(t('common.success'), '', 'success');
