@@ -10,16 +10,18 @@
 
 ---
 
-## Features
+## ฟีเจอร์หลัก
 
 - **Dashboard** — แดชบอร์ดสรุปข้อมูลด้วยกราฟ (Recharts) แยกตามบทบาท Admin / Sales
 - **Sales Management** — จัดการข้อมูลฝ่ายขาย (CRUD + Soft Delete)
 - **Customer Management** — จัดการข้อมูลลูกค้า พร้อมมอบหมายให้ฝ่ายขาย
 - **Project Management** — จัดการโครงการ พร้อมติดตามงบประมาณและสถานะ
 - **Role-Based Access Control** — สองบทบาท: Admin และ Sales พร้อม Row Level Security
+- **สิทธิ์การเข้าถึงลูกค้า** — Sales จัดการได้เฉพาะลูกค้าของตัวเอง (เพิ่ม/แก้ไข/ลบ)
+- **Auto Logout** — ออกจากระบบอัตโนมัติเมื่อไม่มีการใช้งานเป็นเวลา 10 นาที
 - **Thai / English** — รองรับสองภาษา (i18next)
 - **Responsive Design** — ใช้งานได้ทั้ง Desktop, Laptop, Tablet, iPad, Mobile
-- **Code Splitting** — โหลดหน้าแบบ Lazy Load เพื่อประสิทธิภาพสูงสุด...
+- **Code Splitting** — โหลดหน้าแบบ Lazy Load เพื่อประสิทธิภาพสูงสุด
 
 ---
 
@@ -39,12 +41,17 @@
 
 ---
 
-## Project Structure
+## โครงสร้างโปรเจค
 
 ```
 sms/
 ├── supabase/
-│   └── schema.sql              # โครงสร้างฐานข้อมูล + RLS Policies + Triggers
+│   ├── schema.sql              # โครงสร้างฐานข้อมูล + RLS Policies + Triggers
+│   ├── fix-signup-v4.sql       # แก้ไขปัญหา signup trigger (รันหลัง schema.sql)
+│   ├── fix-confirm-email.sql   # แก้ไขการยืนยันอีเมล
+│   ├── fix-admin-role.sql      # แก้ไขบทบาท admin
+│   ├── fix-sales-rls.sql       # แก้ไข RLS สำหรับฝ่ายขาย
+│   └── fix-signup-v*.sql       # เวอร์ชันก่อนหน้าของ fix signup
 ├── public/
 │   └── favicon.svg             # Favicon
 ├── src/
@@ -61,7 +68,7 @@ sms/
 │   │   └── index.ts            # TypeScript interfaces
 │   │
 │   ├── contexts/
-│   │   └── AuthContext.tsx      # Authentication state & role management
+│   │   └── AuthContext.tsx      # Authentication state + role management + auto-logout
 │   │
 │   ├── services/
 │   │   ├── sales.service.ts    # Sales CRUD operations
@@ -100,9 +107,9 @@ sms/
 │       │   ├── SalesListPage.tsx
 │       │   └── SalesDetailPage.tsx
 │       ├── customers/
-│       │   ├── CustomerListPage.tsx
+│       │   ├── CustomerListPage.tsx      # 列表 + สิทธิ์จัดการตามบทบาท
 │       │   ├── CustomerDetailPage.tsx
-│       │   └── CustomerFormModal.tsx
+│       │   └── CustomerFormModal.tsx     # ฟอร์ม + auto-assign sales_id
 │       ├── projects/
 │       │   ├── ProjectListPage.tsx
 │       │   ├── ProjectDetailPage.tsx
@@ -110,9 +117,9 @@ sms/
 │       ├── profile/
 │       │   └── ProfilePage.tsx
 │       └── admin/
-│           ├── sales/AdminSalesPage.tsx
-│           ├── customers/AdminCustomerPage.tsx
-│           └── projects/AdminProjectPage.tsx
+│           ├── sales/AdminSalesPage.tsx       # จัดการฝ่ายขาย + สร้างผู้ใช้
+│           ├── customers/AdminCustomerPage.tsx # จัดการลูกค้า (admin view)
+│           └── projects/AdminProjectPage.tsx   # จัดการโครงการ (admin view)
 │
 ├── .env.example                # Environment variables template
 ├── vercel.json                 # Vercel SPA routing config
@@ -125,26 +132,43 @@ sms/
 
 ## Routes
 
-| Path | Page | Access |
+| Path | หน้า | สิทธิ์เข้าถึง |
 |------|------|--------|
-| `/login` | Login | Public |
-| `/dashboard` | Dashboard | All |
-| `/sales` | Sales List | All |
-| `/sales/:id` | Sales Detail | All |
-| `/customers` | Customer List | All |
-| `/customers/:id` | Customer Detail | All |
-| `/projects` | Project List | All |
-| `/projects/:id` | Project Detail | All |
-| `/profile` | My Profile | All |
-| `/admin/sales` | Sales Management | Admin |
-| `/admin/customers` | Customer Management | Admin |
-| `/admin/projects` | Project Management | Admin |
+| `/login` | เข้าสู่ระบบ | Public |
+| `/dashboard` | แดชบอร์ด | ทุกคน |
+| `/sales` | รายการฝ่ายขาย | ทุกคน |
+| `/sales/:id` | รายละเอียดฝ่ายขาย | ทุกคน |
+| `/customers` | รายการลูกค้า | ทุกคน |
+| `/customers/:id` | รายละเอียดลูกค้า | ทุกคน |
+| `/projects` | รายการโครงการ | ทุกคน |
+| `/projects/:id` | รายละเอียดโครงการ | ทุกคน |
+| `/profile` | โปรไฟล์ของฉัน | ทุกคน |
+| `/admin/sales` | จัดการฝ่ายขาย | Admin |
+| `/admin/customers` | จัดการลูกค้า | Admin |
+| `/admin/projects` | จัดการโครงการ | Admin |
 
 ---
 
-## Business Rules
+## สิทธิ์การใช้งาน (Permissions)
 
-| # | Rule |
+### Admin
+- จัดการฝ่ายขาย (เพิ่ม/แก้ไข/ลบ/รีเซ็ตรหัสผ่าน)
+- จัดการลูกค้าทั้งหมด (เพิ่ม/แก้ไข/ลบ + กำหนดเจ้าของลูกค้า)
+- จัดการโครงการทั้งหมด (เพิ่ม/แก้ไข/ลบ)
+- ดูแดชบอร์ดสรุปข้อมูลทั้งระบบ
+
+### Sales
+- ดูลูกค้าทั้งหมด (read-only)
+- **เพิ่มลูกค้าใหม่** — กำหนดให้เป็นลูกค้าของตัวเองโดยอัตโนมัติ
+- **แก้ไข/ลบลูกค้า** — ทำได้เฉพาะลูกค้าของตัวเองเท่านั้น
+- จัดการโครงการภายใต้ลูกค้าของตัวเอง
+- ดูแดชบอร์ดสรุปข้อมูลของตัวเอง
+
+---
+
+## กฎธุรกิจ (Business Rules)
+
+| # | กฎ |
 |---|------|
 | 1 | Sales หนึ่งคน มีลูกค้าได้หลายคน |
 | 2 | ลูกค้าหนึ่งคน อยู่กับ Sales ได้คนเดียว |
@@ -156,10 +180,11 @@ sms/
 | 8 | Admin เท่านั้นที่กำหนดเจ้าของลูกค้า (Sales Owner) |
 | 9 | ลบข้อมูลแบบ Soft Delete ไม่ลบจริง |
 | 10 | ใช้ UUID เป็น Primary Key ทั้งหมด |
+| 11 | ออกจากระบบอัตโนมัติเมื่อไม่มีการใช้งาน 10 นาที |
 
 ---
 
-## Database Schema
+## โครงสร้างฐานข้อมูล
 
 ```
 auth.users (Supabase)
@@ -173,67 +198,75 @@ auth.users (Supabase)
     │                       └── projects (id, customer_id → customers.id, project_code, ...)
 ```
 
-RLS Policies enforce that:
-- **Admin** has full access to all tables
-- **Sales** can read all data but write only their own customers/projects
+RLS Policies บังคับใช้:
+- **Admin** มีสิทธิ์เข้าถึงทุกตารางแบบเต็ม
+- **Sales** อ่านข้อมูลได้ทั้งหมด แต่เขียนได้เฉพาะลูกค้าและโครงการของตัวเอง
+- **Auto-logout** เมื่อไม่มี activity เป็นเวลา 10 นาที (ติดตาม mouse, keyboard, scroll, touch)
 
 ---
 
-## Getting Started
+## เริ่มต้นใช้งาน (Getting Started)
 
-### Prerequisites
+### ข้อกำหนด
 
 - Node.js 18+
-- npm or yarn or pnpm
-- Supabase project (free tier works)
+- npm หรือ yarn หรือ pnpm
+- Supabase project (ใช้ free tier ได้)
 
-### 1. Clone the repository
+### 1. Clone โปรเจค
 
 ```bash
 git clone https://github.com/your-username/sms.git
 cd sms
 ```
 
-### 2. Install dependencies
+### 2. ติดตั้ง dependencies
 
 ```bash
 npm install
 ```
 
-### 3. Configure environment variables
+### 3. ตั้งค่า Environment Variables
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and add your Supabase credentials:
+แก้ไข `.env` และใส่ Supabase credentials:
 
 ```
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...your-anon-key...
 ```
 
-> Find these in Supabase Dashboard → Settings → API
+> หาได้จาก Supabase Dashboard → Settings → API
 
-### 4. Set up the database
+### 4. ตั้งค่าฐานข้อมูล
 
-1. Open Supabase Dashboard → **SQL Editor**
-2. Copy the contents of `supabase/schema.sql`
-3. Paste and click **Run**
+1. เปิด Supabase Dashboard → **SQL Editor**
+2. คัดลอกเนื้อหาจาก `supabase/schema.sql`
+3. วางและกด **Run**
 
-This creates:
-- 4 tables (profiles, sales, customers, projects)
-- Indexes for performance
+จากนั้นรัน fix scripts (ตามลำดับ):
+```bash
+# รันใน Supabase SQL Editor
+# 1. schema.sql (หลัก)
+# 2. fix-signup-v4.sql (แก้ไข signup trigger)
+```
+
+สิ่งที่สร้างขึ้น:
+- 4 ตาราง (profiles, sales, customers, projects)
+- Indexes สำหรับประสิทธิภาพ
 - Row Level Security policies
-- Auto-create profile trigger
-- Auto-confirm email trigger
+- Trigger สำหรับสร้าง profile อัตโนมัติเมื่อสมัครสมาชิก
+- Trigger สำหรับ sync อีเมลและชื่อระหว่าง sales ↔ auth.users
 
-### 5. Create the first Admin user
+### 5. สร้าง Admin User คนแรก
 
 1. Supabase Dashboard → **Authentication → Users → Add user**
-2. Enter email and password
-3. After creation, click on the user
-4. Add to **User Metadata**:
+2. ใส่อีเมลและรหัสผ่าน
+3. หลังสร้างเสร็จ คลิกที่ผู้ใช้
+4. เพิ่มใน **User Metadata**:
    ```json
    {
      "role": "admin",
@@ -241,57 +274,58 @@ This creates:
    }
    ```
 
-> **Important:** Without `"role": "admin"` in user metadata, the user will be treated as a Sales user.
+> **สำคัญ:** ถ้าไม่ใส่ `"role": "admin"` ใน user metadata ผู้ใช้จะถูกมองเป็น Sales โดยอัตโนมัติ
 
-### 6. Start development server
+### 6. เริ่ม Development Server
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) and log in.
+เปิด [http://localhost:5173](http://localhost:5173) และเข้าสู่ระบบ
 
 ---
 
-## Deployment
+## การ Deploy
 
-### Vercel (Recommended)
+### Vercel (แนะนำ)
 
-1. Push code to GitHub
-2. Go to [vercel.com](https://vercel.com) → **New Project** → Import your repo
-3. Add environment variables:
+1. Push โค้ดไปที่ GitHub
+2. ไปที่ [vercel.com](https://vercel.com) → **New Project** → Import repo ของคุณ
+3. เพิ่ม Environment Variables:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
 4. Deploy
 
-Vercel auto-detects Vite. The `vercel.json` handles SPA routing.
+Vercel จะตรวจจับ Vite โดยอัตโนมัติ `vercel.json` จัดการ SPA routing ให้แล้ว
 
 ### Netlify
 
 1. Build command: `npm run build`
 2. Publish directory: `dist`
-3. Add environment variables
+3. เพิ่ม Environment Variables
 
 ---
 
-## Available Scripts
+## คำสั่งที่ใช้ได้
 
-| Command | Description |
+| คำสั่ง | คำอธิบาย |
 |---------|------------|
-| `npm run dev` | Start development server |
-| `npm run build` | Build for production |
-| `npm run preview` | Preview production build |
-| `npm run lint` | Run linter (oxlint) |
+| `npm run dev` | เริ่ม development server |
+| `npm run build` | สร้างไฟล์ production |
+| `npm run preview` | ดูตัวอย่าง production build |
+| `npm run lint` | รัน linter (oxlint) |
 
 ---
 
-## Security
+## ความปลอดภัย
 
-- **Row Level Security (RLS)** — enforced at database level, not just frontend
-- **UUID Primary Keys** — internal IDs never exposed or used in URLs for auth
-- **Soft Delete** — data is never permanently deleted
-- **Password never displayed** — plain text passwords are never shown
-- **Supabase Anon Key only** — service role key is never used in the frontend
+- **Row Level Security (RLS)** — บังคับใช้ที่ระดับฐานข้อมูล ไม่ใช่แค่ frontend
+- **UUID Primary Keys** — ไม่เปิดเผย internal IDs ใน URL หรือใช้สำหรับ auth
+- **Soft Delete** — ข้อมูลไม่ถูกลบจริง สามารถกู้คืนได้
+- **รหัสผ่านไม่แสดง** — ไม่แสดงรหัสผ่านแบบ plain text
+- **Supabase Anon Key เท่านั้น** — ไม่ใช้ service role key ใน frontend
+- **Auto Logout** — ออกจากระบบอัตโนมัติหลังไม่มีการใช้งาน 10 นาที
 
 ---
 
