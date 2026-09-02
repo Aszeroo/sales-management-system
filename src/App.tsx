@@ -1,122 +1,201 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { Layout } from '@/components/layout/Layout';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { FullPageLoader } from '@/components/ui/LoadingSpinner';
 
-function App() {
-  const [count, setCount] = useState(0)
+// Lazy-loaded pages for code splitting
+const LoginPage = lazy(() => import('@/pages/login/LoginPage'));
+const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'));
+const SalesListPage = lazy(() => import('@/pages/sales/SalesListPage'));
+const SalesDetailPage = lazy(() => import('@/pages/sales/SalesDetailPage'));
+const CustomerListPage = lazy(() => import('@/pages/customers/CustomerListPage'));
+const CustomerDetailPage = lazy(() => import('@/pages/customers/CustomerDetailPage'));
+const ProjectListPage = lazy(() => import('@/pages/projects/ProjectListPage'));
+const ProjectDetailPage = lazy(() => import('@/pages/projects/ProjectDetailPage'));
+const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'));
+const AdminSalesPage = lazy(() => import('@/pages/admin/sales/AdminSalesPage'));
+const AdminCustomerPage = lazy(() => import('@/pages/admin/customers/AdminCustomerPage'));
+const AdminProjectPage = lazy(() => import('@/pages/admin/projects/AdminProjectPage'));
 
+function SuspenseWrapper({ children }: { children: React.ReactNode }) {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    <Suspense fallback={<FullPageLoader />}>
+      {children}
+    </Suspense>
+  );
 }
 
-export default App
+function App() {
+  return (
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public Routes */}
+            <Route
+              path="/login"
+              element={
+                <SuspenseWrapper>
+                  <LoginPage />
+                </SuspenseWrapper>
+              }
+            />
+
+            {/* Protected Routes */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SuspenseWrapper>
+                      <DashboardPage />
+                    </SuspenseWrapper>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/sales"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SuspenseWrapper>
+                      <SalesListPage />
+                    </SuspenseWrapper>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/sales/:id"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SuspenseWrapper>
+                      <SalesDetailPage />
+                    </SuspenseWrapper>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/customers"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SuspenseWrapper>
+                      <CustomerListPage />
+                    </SuspenseWrapper>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/customers/:id"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SuspenseWrapper>
+                      <CustomerDetailPage />
+                    </SuspenseWrapper>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/projects"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SuspenseWrapper>
+                      <ProjectListPage />
+                    </SuspenseWrapper>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/projects/:id"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SuspenseWrapper>
+                      <ProjectDetailPage />
+                    </SuspenseWrapper>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SuspenseWrapper>
+                      <ProfilePage />
+                    </SuspenseWrapper>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin Routes */}
+            <Route
+              path="/admin/sales"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <Layout>
+                    <SuspenseWrapper>
+                      <AdminSalesPage />
+                    </SuspenseWrapper>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/admin/customers"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <Layout>
+                    <SuspenseWrapper>
+                      <AdminCustomerPage />
+                    </SuspenseWrapper>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/admin/projects"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <Layout>
+                    <SuspenseWrapper>
+                      <AdminProjectPage />
+                    </SuspenseWrapper>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Default redirect */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ErrorBoundary>
+  );
+}
+
+export default App;
