@@ -1,7 +1,9 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { AuthUser, UserRole } from '@/types';
+
+const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -84,6 +86,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
   };
+
+  // === Auto-logout on inactivity ===
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetTimer = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      supabase.auth.signOut();
+      setUser(null);
+      window.location.href = '/login';
+    }, INACTIVITY_TIMEOUT_MS);
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      // No user logged in — clear timer
+      if (timerRef.current) clearTimeout(timerRef.current);
+      return;
+    }
+
+    // User is logged in — start tracking activity
+    const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, resetTimer, { passive: true });
+    });
+
+    // Start the initial timer
+    resetTimer();
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [user, resetTimer]);
 
   return (
     <AuthContext.Provider
