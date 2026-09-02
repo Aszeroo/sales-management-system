@@ -266,11 +266,7 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
 -- ============================================
--- Admin password reset function (requires service role)
--- Call via: supabase.rpc('admin_reset_user_password', { target_user_id: '...', new_password: '...' })
--- NOTE: This function uses SECURITY DEFINER and requires the caller to be an admin.
--- In production, this should be called from a Supabase Edge Function with service_role key.
--- For client-side usage, the admin must call this via the Supabase Dashboard or a backend endpoint.
+-- Admin password reset function
 -- ============================================
 CREATE OR REPLACE FUNCTION admin_reset_user_password(
   target_user_id UUID,
@@ -278,14 +274,61 @@ CREATE OR REPLACE FUNCTION admin_reset_user_password(
 )
 RETURNS VOID AS $$
 BEGIN
-  -- Verify the caller is an admin
   IF get_user_role() != 'admin' THEN
     RAISE EXCEPTION 'Only admin can reset passwords';
   END IF;
 
-  -- Update the password using Supabase's internal function
   UPDATE auth.users
   SET encrypted_password = crypt(new_password, gen_salt('bf'))
   WHERE id = target_user_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================
+-- Sync email from sales table → auth.users
+-- When admin edits email in the app, it also
+-- updates the login email in Supabase Auth.
+-- ============================================
+CREATE OR REPLACE FUNCTION sync_sales_email_to_auth()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Only sync if email actually changed
+  IF NEW.email IS DISTINCT FROM OLD.email THEN
+    UPDATE auth.users
+    SET
+      email = NEW.email,
+      raw_user_meta_data = raw_user_meta_data || jsonb_build_object('email', NEW.email)
+    WHERE id = NEW.user_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_sales_email_changed ON sales;
+
+CREATE TRIGGER on_sales_email_changed
+  AFTER UPDATE OF email ON sales
+  FOR EACH ROW
+  EXECUTE FUNCTION sync_sales_email_to_auth();
+
+-- ============================================
+-- Sync full_name from sales table → auth.users metadata
+-- ============================================
+CREATE OR REPLACE FUNCTION sync_sales_name_to_auth()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.full_name IS DISTINCT FROM OLD.full_name THEN
+    UPDATE auth.users
+    SET raw_user_meta_data = raw_user_meta_data || jsonb_build_object('full_name', NEW.full_name)
+    WHERE id = NEW.user_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_sales_name_changed ON sales;
+
+CREATE TRIGGER on_sales_name_changed
+  AFTER UPDATE OF full_name ON sales
+  FOR EACH ROW
+  EXECUTE FUNCTION sync_sales_name_to_auth();
