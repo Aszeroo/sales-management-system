@@ -19,7 +19,7 @@
 - **Role-Based Access Control** — สองบทบาท: Admin และ Sales พร้อม Row Level Security
 - **Thai / English** — รองรับสองภาษา (i18next)
 - **Responsive Design** — ใช้งานได้ทั้ง Desktop, Laptop, Tablet, iPad, Mobile
-- **Code Splitting** — โหลดหน้าแบบ Lazy Load เพื่อประสิทธิภาพสูงสุด
+- **Code Splitting** — โหลดหน้าแบบ Lazy Load เพื่อประสิทธิภาพสูงสุด...
 
 ---
 
