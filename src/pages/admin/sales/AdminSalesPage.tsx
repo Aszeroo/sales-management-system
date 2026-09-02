@@ -320,8 +320,21 @@ function SalesFormModal({
         }
 
         if (authData.user) {
-          // The trigger should have already created the sales record.
-          // Check if it exists; if not, create it as admin (fallback).
+          // Ensure profile exists (trigger may have failed silently)
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', authData.user.id)
+            .single();
+
+          if (!existingProfile) {
+            await supabase.from('profiles').insert({
+              id: authData.user.id,
+              full_name: data.full_name,
+            });
+          }
+
+          // Ensure sales record exists (trigger may have failed)
           const existing = await salesService.getByUserId(authData.user.id);
           if (!existing) {
             await salesService.create({
