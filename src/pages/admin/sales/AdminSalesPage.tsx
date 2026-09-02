@@ -299,8 +299,18 @@ function SalesFormModal({
         if (authError) throw authError;
 
         if (authData.user) {
-          // Profile is auto-created by the on_auth_user_created trigger
-          // Just create the sales record
+          // Ensure profile exists (trigger should create it, but create as fallback)
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .upsert(
+              { id: authData.user.id, full_name: data.full_name },
+              { onConflict: 'id', ignoreDuplicates: true }
+            );
+          if (profileError) {
+            console.error('Profile creation fallback failed:', profileError);
+          }
+
+          // Create the sales record
           await salesService.create({
             user_id: authData.user.id,
             sales_code: data.sales_code,
