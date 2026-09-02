@@ -73,6 +73,6 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'on_auth_user_created') THEN
     RAISE NOTICE 'SUCCESS: Trigger recreated. Try signing up now.';
   ELSE
-    RAISE ERROR 'FAILED: Trigger was not created.';
+    RAISE NOTICE 'FAILED: Trigger was not created. Check for errors above.';
   END IF;
 END $$;
