@@ -87,6 +87,9 @@
     "loginButton": "Sign In",
     "loggingIn": "Signing in...",
     "error": "Login failed. Please check your credentials.",
+    "errorInvalidCredentials": "Invalid email or password. Please check your credentials.",
+    "errorEmailNotConfirmed": "Email not confirmed. Please check your inbox for a confirmation link, or contact your administrator.",
+    "errorUnexpected": "An unexpected error occurred. Please try again later.",
     "rememberMe": "Remember me"
   },
   "profile": {

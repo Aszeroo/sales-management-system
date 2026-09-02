@@ -237,16 +237,29 @@ CREATE POLICY "Sales can delete own projects" ON projects
   );
 
 -- ============================================
--- Auto-create profile on user signup
+-- Auto-create profile + auto-confirm email on user signup
+-- ============================================
+-- NOTE: Set 'Sender email' in Supabase Dashboard → Authentication → Email
+-- and turn OFF 'Confirm email' in the same panel for faster onboarding.
+-- The trigger below also auto-confirms so users can log in immediately.
 -- ============================================
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Auto-confirm email so new users can log in immediately
+  UPDATE auth.users
+  SET email_confirmed_at = COALESCE(email_confirmed_at, NOW())
+  WHERE id = NEW.id;
+
+  -- Create profile
   INSERT INTO profiles (id, full_name)
   VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data ->> 'full_name', ''));
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Drop existing trigger if it exists (safe to re-run)
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users

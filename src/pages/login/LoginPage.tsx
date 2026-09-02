@@ -39,7 +39,7 @@ export default function LoginPage() {
 
     const result = await signIn(data.email, data.password);
     if (result.error) {
-      setError(t('login.error'));
+      setError(t(result.error, t('login.error')));
       setLoading(false);
     } else {
       navigate('/dashboard');

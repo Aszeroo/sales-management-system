@@ -64,11 +64,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        return { error: error.message };
+        // Return user-friendly error messages
+        const msg = error.message;
+        if (msg.includes('Invalid login credentials')) {
+          return { error: 'login.errorInvalidCredentials' };
+        }
+        if (msg.includes('Email not confirmed')) {
+          return { error: 'login.errorEmailNotConfirmed' };
+        }
+        return { error: msg };
       }
       return {};
     } catch {
-      return { error: 'An unexpected error occurred' };
+      return { error: 'login.errorUnexpected' };
     }
   };
 
