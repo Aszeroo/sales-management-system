@@ -65,15 +65,15 @@ export default function SalesDetailPage() {
             <p className="font-mono font-medium text-gray-900">{salesData.sales_code}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">{t('adminSales.fullName')}</p>
+            <p className="text-sm text-gray-500">{t('salesPage.fullName')}</p>
             <p className="font-medium text-gray-900">{salesData.full_name}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">{t('adminSales.username')}</p>
+            <p className="text-sm text-gray-500">{t('salesPage.username')}</p>
             <p className="font-medium text-gray-900">{salesData.username}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">{t('adminSales.email')}</p>
+            <p className="text-sm text-gray-500">{t('salesPage.email')}</p>
             <p className="font-medium text-gray-900">{salesData.email}</p>
           </div>
           <div>

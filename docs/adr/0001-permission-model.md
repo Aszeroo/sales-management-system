@@ -50,4 +50,4 @@ $$;
 -- policy ownership เช็ค: customer.sales_id = current_sales_id()
 ```
 
-การเปลี่ยนบทบาท/ปิดบัญชี/สร้างผู้ใช้ ใช้ SECURITY DEFINER RPC ที่ Admin เรียกผ่าน anon key (แทนการ hack `signUp` ปัจจุบันใน `src/pages/admin/sales/AdminSalesPage.tsx:287-314`) — ดูเพิ่มเติม: `src/contexts/AuthContext.tsx` (role + auto-logout), `src/components/ProtectedRoute.tsx` (route guard)
+การเปลี่ยนบทบาท/ปิดบัญชี/สร้างผู้ใช้ ใช้ SECURITY DEFINER RPC ที่ Admin เรียกผ่าน anon key (แทนการ hack `signUp` เดิมของหน้าจัดการ Sales ที่ถูกแทนด้วยหน้า "ผู้ใช้" รวม — issue #7, migration `0005_user_management.sql`) — ดูเพิ่มเติม: `src/contexts/AuthContext.tsx` (role + auto-logout), `src/components/ProtectedRoute.tsx` (route guard)

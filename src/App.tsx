@@ -16,7 +16,7 @@ const CustomerDetailPage = lazy(() => import('@/pages/customers/CustomerDetailPa
 const ProjectListPage = lazy(() => import('@/pages/projects/ProjectListPage'));
 const ProjectDetailPage = lazy(() => import('@/pages/projects/ProjectDetailPage'));
 const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'));
-const AdminSalesPage = lazy(() => import('@/pages/admin/sales/AdminSalesPage'));
+const AdminUsersPage = lazy(() => import('@/pages/admin/users/AdminUsersPage'));
 const AdminCustomerPage = lazy(() => import('@/pages/admin/customers/AdminCustomerPage'));
 const AdminProjectPage = lazy(() => import('@/pages/admin/projects/AdminProjectPage'));
 
@@ -151,12 +151,12 @@ function App() {
 
             {/* Admin Routes */}
             <Route
-              path="/admin/sales"
+              path="/admin/users"
               element={
                 <ProtectedRoute requiredRole="admin">
                   <Layout>
                     <SuspenseWrapper>
-                      <AdminSalesPage />
+                      <AdminUsersPage />
                     </SuspenseWrapper>
                   </Layout>
                 </ProtectedRoute>
