@@ -8,7 +8,7 @@ import type { ManagedUser, UserRole } from '@/types';
  * creates the auth user + profile and the signup trigger adds the sales row
  * iff the role is owner-capable (ADR-0001).
  */
-export interface UserCreateInput {
+interface UserCreateInput {
   email: string;
   password: string;
   full_name: string;
