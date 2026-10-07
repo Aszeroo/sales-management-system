@@ -51,7 +51,11 @@ export function ProjectFormModal({ isOpen, onClose, onSuccess, project }: Projec
   });
 
   useEffect(() => {
-    customerService.getAll().then((data) => setCustomers(data.filter((c) => c.status === 'active')));
+    // Issue #5 (Permission Matrix): the option list is scoped at the query
+    // layer — a Sales user gets only their own customers; Manager/Admin get
+    // every active customer. RLS enforces the same rule for a direct API
+    // call, but the form never relies on the DB to trim the list for it.
+    customerService.getOptionsForProjectForm().then((data) => setCustomers(data));
 
     if (project) {
       reset({

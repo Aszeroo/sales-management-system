@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Eye, Pencil, Trash2, Plus, FolderKanban } from 'lucide-react';
 import { projectService } from '@/services/project.service';
+import { salesService } from '@/services/sales.service';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -17,20 +18,32 @@ import { ProjectFormModal } from './ProjectFormModal';
 
 export default function ProjectListPage() {
   const { t } = useTranslation();
-  const { isAdmin, isSales } = useAuth();
-  // 3-role model (ADR-0001): write rights stay Sales-only this ticket;
-  // Manager is a read-only viewer here until #4/#5 open them up.
-  const canManageProjects = isAdmin || isSales;
+  const { isAdmin, isManager, isSales, user } = useAuth();
+  // 3-role model (ADR-0001) — Permission Matrix (issue #5):
+  //   create: admin/manager under any customer, sales under their own only
+  //   edit:   admin/manager any, sales own-customer projects only
+  //   delete: admin any, sales own-customer projects only, manager NEVER
+  // The DB enforces the same cells via RLS (migration 0004); the UI hides
+  // the buttons so the matrix is honored at both layers.
+  const canCreateProjects = isAdmin || isManager || isSales;
   const [projects, setProjects] = useState<ProjectWithCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectWithCustomer | null>(null);
+  const [mySalesId, setMySalesId] = useState<string | null>(null);
 
   useEffect(() => {
     loadProjects();
-  }, []);
+    // Get current user's sales_id for permission checks (ownership derives
+    // through the Customer: project.customer.sales_id, ADR-0001)
+    if (!isAdmin && user?.id) {
+      salesService.getByUserId(user.id).then((s) => {
+        if (s) setMySalesId(s.id);
+      });
+    }
+  }, [isAdmin, user]);
 
   async function loadProjects() {
     try {
@@ -51,6 +64,19 @@ export default function ProjectListPage() {
     const matchStatus = statusFilter === 'all' || p.status === statusFilter;
     return matchSearch && matchStatus;
   });
+
+  function isOwnCustomerProject(p: ProjectWithCustomer): boolean {
+    return isSales && p.customer?.sales_id === mySalesId;
+  }
+
+  function canEditProject(p: ProjectWithCustomer): boolean {
+    return isAdmin || isManager || isOwnCustomerProject(p);
+  }
+
+  function canDeleteProject(p: ProjectWithCustomer): boolean {
+    // Manager never gets a delete button (Permission Matrix)
+    return isAdmin || isOwnCustomerProject(p);
+  }
 
   async function handleDelete(project: ProjectWithCustomer) {
     const result = await Swal.fire({
@@ -96,7 +122,7 @@ export default function ProjectListPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('projectPage.title')}</h1>
-        {canManageProjects && (
+        {canCreateProjects && (
           <Button onClick={handleCreate}>
             <Plus size={18} />
             {t('projectPage.addProject')}
@@ -166,21 +192,21 @@ export default function ProjectListPage() {
                   <Eye size={14} />
                   {t('common.view')}
                 </Link>
-                {canManageProjects && (
-                  <>
-                    <button
-                      onClick={() => handleEdit(p)}
-                      className="flex items-center justify-center px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(p)}
-                      className="flex items-center justify-center px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </>
+                {canEditProject(p) && (
+                  <button
+                    onClick={() => handleEdit(p)}
+                    className="flex items-center justify-center px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
+                {canDeleteProject(p) && (
+                  <button
+                    onClick={() => handleDelete(p)}
+                    className="flex items-center justify-center px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 )}
               </div>
             </Card>

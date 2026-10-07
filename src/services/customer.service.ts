@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Customer, CustomerWithCounts } from '@/types';
+import { salesService } from '@/services/sales.service';
 
 /**
  * Creation input: every column except the generated/system ones. `sales_id`
@@ -158,5 +159,46 @@ export const customerService = {
     const { error } = await client.rpc('soft_delete_customer', { p_customer_id: id });
 
     if (error) throw error;
+  },
+
+  /**
+   * Customer options for the Project form (issue #5). A Sales user may
+   * target only their own customers — filtered here at the query layer
+   * (sales_id = the current user's sales row via getCurrentUserSales), never
+   * by trimming the first N rows of an unfiltered list. Manager/Admin see
+   * every active customer; the DB still enforces the same rule under RLS for
+   * a direct API call.
+   */
+  async getOptionsForProjectForm(client: SupabaseClient = supabase): Promise<Customer[]> {
+    const { data: userData } = await client.auth.getUser();
+    const metadataRole: unknown = userData?.user?.user_metadata?.role;
+    // Mirror the DB's get_user_role(): unknown/missing metadata acts as
+    // 'sales', the most restrictive owner-capable role.
+    const role =
+      metadataRole === 'admin' || metadataRole === 'manager' ? metadataRole : 'sales';
+
+    if (role === 'sales') {
+      const sales = await salesService.getCurrentUserSales(client);
+      // A sales user without a sales row sees no options at all.
+      return sales ? this.getActiveCustomers(client, sales.id) : [];
+    }
+    return this.getActiveCustomers(client);
+  },
+
+  /**
+   * Active, non-deleted customers, optionally scoped to one Sales Owner at
+   * the query layer.
+   */
+  async getActiveCustomers(client: SupabaseClient = supabase, salesId?: string): Promise<Customer[]> {
+    let query = client
+      .from('customers')
+      .select('*')
+      .is('deleted_at', null)
+      .eq('status', 'active');
+    if (salesId) query = query.eq('sales_id', salesId);
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
   },
 };
