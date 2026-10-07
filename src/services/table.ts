@@ -6,7 +6,11 @@ import { touchUpdatedAt } from '@/lib/audit';
  * or UPDATE returning the saved row, with the shared audit stamp on every
  * UPDATE. The injectable client keeps the test seam intact.
  */
-export async function insertRow<T>(client: SupabaseClient, table: string, values: unknown): Promise<T> {
+export async function insertRow<T>(
+  client: SupabaseClient,
+  table: string,
+  values: Record<string, unknown>,
+): Promise<T> {
   const { data, error } = await client.from(table).insert(values).select().single();
   if (error) throw error;
   return data as T;
