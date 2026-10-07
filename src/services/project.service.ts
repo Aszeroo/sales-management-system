@@ -1,9 +1,15 @@
 import { supabase } from '@/lib/supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Project, ProjectWithCustomer } from '@/types';
 
+/**
+ * Every method takes an optional supabase-js client (defaults to the app's
+ * singleton) so tests can drive the same seam with their own signed-in
+ * client — real RLS, no mocks (see src/tests/*).
+ */
 export const projectService = {
-  async getAll(): Promise<ProjectWithCustomer[]> {
-    const { data, error } = await supabase
+  async getAll(client: SupabaseClient = supabase): Promise<ProjectWithCustomer[]> {
+    const { data, error } = await client
       .from('projects')
       .select('*, customer:customers(id, customer_name, customer_code, sales_id)')
       .is('deleted_at', null)
@@ -17,8 +23,8 @@ export const projectService = {
     }));
   },
 
-  async getById(id: string): Promise<ProjectWithCustomer | null> {
-    const { data, error } = await supabase
+  async getById(id: string, client: SupabaseClient = supabase): Promise<ProjectWithCustomer | null> {
+    const { data, error } = await client
       .from('projects')
       .select('*, customer:customers(id, customer_name, customer_code, sales_id, contact_person, phone, email)')
       .eq('id', id)
@@ -33,8 +39,8 @@ export const projectService = {
     };
   },
 
-  async getByCustomerId(customerId: string): Promise<Project[]> {
-    const { data, error } = await supabase
+  async getByCustomerId(customerId: string, client: SupabaseClient = supabase): Promise<Project[]> {
+    const { data, error } = await client
       .from('projects')
       .select('*')
       .eq('customer_id', customerId)
@@ -45,8 +51,11 @@ export const projectService = {
     return data || [];
   },
 
-  async create(projectData: Omit<Project, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>): Promise<Project> {
-    const { data, error } = await supabase
+  async create(
+    projectData: Omit<Project, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>,
+    client: SupabaseClient = supabase,
+  ): Promise<Project> {
+    const { data, error } = await client
       .from('projects')
       .insert(projectData)
       .select()
@@ -56,8 +65,8 @@ export const projectService = {
     return data;
   },
 
-  async update(id: string, updates: Partial<Project>): Promise<Project> {
-    const { data, error } = await supabase
+  async update(id: string, updates: Partial<Project>, client: SupabaseClient = supabase): Promise<Project> {
+    const { data, error } = await client
       .from('projects')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
@@ -68,18 +77,23 @@ export const projectService = {
     return data;
   },
 
-  async softDelete(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('projects')
-      .update({ deleted_at: new Date().toISOString(), status: 'cancelled' })
-      .eq('id', id);
+  async softDelete(id: string, client: SupabaseClient = supabase): Promise<void> {
+    // Soft delete goes through the SECURITY DEFINER RPC (migration 0004),
+    // the same pattern soft_delete_customer established in 0003: PostgreSQL
+    // re-applies the SELECT policies to the new row of every UPDATE that
+    // touches any column, so a plain UPDATE setting deleted_at makes the row
+    // invisible to its own read policy and is rejected. The RPC enforces the
+    // delete column of the matrix at the DB level — admin any row, sales
+    // own-customer rows only (ownership joins through the customer,
+    // ADR-0001), manager rejected outright.
+    const { error } = await client.rpc('soft_delete_project', { p_project_id: id });
 
     if (error) throw error;
   },
 
-  async getBySalesId(salesId: string): Promise<ProjectWithCustomer[]> {
+  async getBySalesId(salesId: string, client: SupabaseClient = supabase): Promise<ProjectWithCustomer[]> {
     // First get customers for this sales, then get their projects
-    const { data: customers } = await supabase
+    const { data: customers } = await client
       .from('customers')
       .select('id')
       .eq('sales_id', salesId)
@@ -89,7 +103,7 @@ export const projectService = {
 
     if (customerIds.length === 0) return [];
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('projects')
       .select('*, customer:customers(id, customer_name, customer_code)')
       .in('customer_id', customerIds)
