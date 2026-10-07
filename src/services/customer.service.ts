@@ -179,25 +179,25 @@ export const customerService = {
 
     if (role === 'sales') {
       const sales = await salesService.getCurrentUserSales(client);
-      if (!sales) return [];
-
-      const { data, error } = await client
-        .from('customers')
-        .select('*')
-        .eq('sales_id', sales.id)
-        .is('deleted_at', null)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data || [];
+      // A sales user without a sales row sees no options at all.
+      return sales ? this.getActiveCustomers(client, sales.id) : [];
     }
+    return this.getActiveCustomers(client);
+  },
 
-    const { data, error } = await client
+  /**
+   * Active, non-deleted customers, optionally scoped to one Sales Owner at
+   * the query layer.
+   */
+  async getActiveCustomers(client: SupabaseClient = supabase, salesId?: string): Promise<Customer[]> {
+    let query = client
       .from('customers')
       .select('*')
       .is('deleted_at', null)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false });
+      .eq('status', 'active');
+    if (salesId) query = query.eq('sales_id', salesId);
+
+    const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
   },

@@ -137,7 +137,6 @@ async function projectDeletedAtOf(code: string): Promise<string | null> {
 }
 
 let customerAId: string // owned by salesA
-let customerA2Id: string // second salesA-owned customer (positive filter proof)
 let customerBId: string // owned by salesB
 
 beforeAll(async () => {
@@ -158,7 +157,6 @@ beforeAll(async () => {
   await createCustomerWithOwner(users.salesB.client, codeB, users.salesB.salesId as string)
 
   customerAId = (await customerIdByCode(codeA)) as string
-  customerA2Id = (await customerIdByCode(codeA2)) as string
   customerBId = (await customerIdByCode(codeB)) as string
 
   // One base project per sales user's customer, so cross-owner attempts
