@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { touchUpdatedAt } from '@/lib/audit';
+import { insertRow, updateRow } from '@/services/table';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Project, ProjectWithCustomer, SoftDeletable } from '@/types';
 
@@ -59,26 +59,11 @@ export const projectService = {
     projectData: Omit<Project, 'id' | keyof SoftDeletable>,
     client: SupabaseClient = supabase,
   ): Promise<Project> {
-    const { data, error } = await client
-      .from('projects')
-      .insert(projectData)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return insertRow<Project>(client, 'projects', projectData);
   },
 
   async update(id: string, updates: Partial<Project>, client: SupabaseClient = supabase): Promise<Project> {
-    const { data, error } = await client
-      .from('projects')
-      .update({ ...updates, ...touchUpdatedAt() })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return updateRow<Project>(client, 'projects', id, updates);
   },
 
   async softDelete(id: string, client: SupabaseClient = supabase): Promise<void> {

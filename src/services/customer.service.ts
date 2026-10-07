@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { touchUpdatedAt } from '@/lib/audit';
+import { insertRow, updateRow } from '@/services/table';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Customer, CustomerWithCounts, SoftDeletable } from '@/types';
 import { coerceUserRole, isSalesRole } from '@/lib/roles';
@@ -62,26 +62,11 @@ export const customerService = {
   },
 
   async create(customerData: CustomerCreateInput, client: SupabaseClient = supabase): Promise<Customer> {
-    const { data, error } = await client
-      .from('customers')
-      .insert(customerData)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return insertRow<Customer>(client, 'customers', customerData);
   },
 
   async update(id: string, updates: Partial<Customer>, client: SupabaseClient = supabase): Promise<Customer> {
-    const { data, error } = await client
-      .from('customers')
-      .update({ ...updates, ...touchUpdatedAt() })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return updateRow<Customer>(client, 'customers', id, updates);
   },
 
   async softDelete(id: string, client: SupabaseClient = supabase): Promise<void> {
