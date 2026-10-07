@@ -1,6 +1,6 @@
 # SMS - Sales Management System
 
-ระบบจัดการฝ่ายขายและลูกค้า สำหรับธุรกิจขนาดกลางและขนาดย่อม
+ระบบจัดการฝ่ายขายและลูกค้า สำหรับธุรกิจขนาดกลางและขนาดย่อม — Sales ดูแลลูกค้าของตนเอง และแต่ละลูกค้ามีโครงการภายใต้ตัวเอง ภายใต้โมเดลสิทธิ์ 3 บทบาท (Admin / Manager / Sales)
 
 <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white" />
 <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white" />
@@ -12,16 +12,16 @@
 
 ## ฟีเจอร์หลัก
 
-- **Dashboard** — แดชบอร์ดสรุปข้อมูลด้วยกราฟ (Recharts) แยกตามบทบาท Admin / Sales
-- **Sales Management** — จัดการข้อมูลฝ่ายขาย (CRUD + Soft Delete)
-- **Customer Management** — จัดการข้อมูลลูกค้า พร้อมมอบหมายให้ฝ่ายขาย
-- **Project Management** — จัดการโครงการ พร้อมติดตามงบประมาณและสถานะ
-- **Role-Based Access Control** — สองบทบาท: Admin และ Sales พร้อม Row Level Security
-- **สิทธิ์การเข้าถึงลูกค้า** — Sales จัดการได้เฉพาะลูกค้าของตัวเอง (เพิ่ม/แก้ไข/ลบ)
-- **Auto Logout** — ออกจากระบบอัตโนมัติเมื่อไม่มีการใช้งานเป็นเวลา 10 นาที
-- **Thai / English** — รองรับสองภาษา (i18next)
-- **Responsive Design** — ใช้งานได้ทั้ง Desktop, Laptop, Tablet, iPad, Mobile
-- **Code Splitting** — โหลดหน้าแบบ Lazy Load เพื่อประสิทธิภาพสูงสุด
+- **Dashboard แยกตามบทบาท** — Sales เห็นเฉพาะตัวเลขของตน (ลูกค้า/โครงการ/งบประมาณของตน); Manager และ Admin เห็นทั้งระบบ (Recharts)
+- **Customer Management** — จัดการลูกค้าพร้อมมอบหมาย Sales Owner; ทุก Customer มีเจ้าของเสมอ
+- **Project Management** — โครงการภายใต้ลูกค้า พร้อมงบประมาณและสถานะ
+- **User Management (Admin)** — สร้างบัญชีทุกบทบาท, เปลี่ยนบทบาท, รีเซ็ตรหัสผ่าน, ปิด/เปิดบัญชี (ban จริง — บัญชีที่ถูกปิดล็อกอินไม่ได้) ผ่านหน้า "ผู้ใช้" หน้าเดียว
+- **Owner-reassignment guard** — ปิดบัญชีหรือเลื่อนบทบาทคนที่ยังดูแลลูกค้าอยู่ถูกบล็อกพร้อมแจ้งจำนวนลูกค้า; UI เตือนล่วงหน้าก่อนกด
+- **Soft Delete** — ทุกการลบเป็นการ mark วันเวลา (`deleted_at`) ไม่ลบข้อมูลจริง
+- **Auto Logout** — ออกจากระบบอัตโนมัติเมื่อไม่มีการใช้งาน 10 นาที (mouse, keyboard, scroll, touch)
+- **Thai / English** — รองรับสองภาษา (i18next) สลับได้จาก Sidebar/หน้าล็อกอิน
+- **Responsive Design** — Desktop, Laptop, Tablet, Mobile (sidebar แบบ hamburger บนจอเล็ก)
+- **Code Splitting** — โหลดหน้าแบบ Lazy Load + vendor/charts/ui chunks
 
 ---
 
@@ -37,169 +37,36 @@
 | Notifications | SweetAlert2 |
 | Icons | Lucide React |
 | i18n | i18next + react-i18next |
-| Backend | Supabase (PostgreSQL, Auth, RLS) |
+| Backend | Supabase (PostgreSQL 17, Auth, RLS) |
+| Testing | Vitest 5 (ต่อฐานข้อมูล Supabase จริง) |
+| Lint | oxlint |
 
 ---
 
-## โครงสร้างโปรเจค
+## Permission Matrix
 
-```
-sms/
-├── supabase/
-│   ├── migrations/             # Single source of truth for the database
-│   │   └── 0001_init.sql       # Bas migration: 2-role schema + RLS + triggers
-│   ├── seed.sql              # Stable seed data for local dev/tests
-│   └── config.toml             # supabase init config (ports/CLI config)
-├── public/
-│   └── favicon.svg             # Favicon
-├── src/
-│   ├── main.tsx                # Entry point
-│   ├── App.tsx                 # Routes + Code Splitting (React.lazy)
-│   ├── index.css               # Tailwind CSS
-│   │
-│   ├── lib/
-│   │   ├── supabase.ts         # Supabase client configuration
-│   │   ├── i18n.ts             # i18next setup (Thai/English)
-│   │   └── utils.ts            # Utility functions (formatCurrency, formatDate)
-│   │
-│   ├── types/
-│   │   └── index.ts            # TypeScript interfaces
-│   │
-│   ├── contexts/
-│   │   └── AuthContext.tsx      # Authentication state + role management + auto-logout
-│   │
-│   ├── services/
-│   │   ├── sales.service.ts    # Sales CRUD operations
-│   │   ├── customer.service.ts # Customer CRUD operations
-│   │   └── project.service.ts  # Project CRUD operations
-│   │
-│   ├── components/
-│   │   ├── layout/
-│   │   │   ├── Layout.tsx      # Main layout (sidebar + content area)
-│   │   │   ├── Sidebar.tsx     # Navigation sidebar
-│   │   │   └── Navbar.tsx      # Top navigation bar
-│   │   ├── ui/
-│   │   │   ├── Button.tsx      # Button component (primary/secondary/danger/ghost)
-│   │   │   ├── Card.tsx        # Card + CardStat components
-│   │   │   ├── Modal.tsx       # Modal dialog
-│   │   │   ├── StatusBadge.tsx # Status badge (active/inactive/planning/etc.)
-│   │   │   ├── SearchInput.tsx # Search input with icon
-│   │   │   ├── Select.tsx      # Dropdown select
-│   │   │   ├── TextInput.tsx   # Text input with label + error
-│   │   │   ├── Textarea.tsx    # Textarea with label + error
-│   │   │   ├── EmptyState.tsx  # Empty state placeholder
-│   │   │   └── LoadingSpinner.tsx # Loading spinner + Full page loader
-│   │   ├── ProtectedRoute.tsx  # Route guard (auth + role check)
-│   │   └── ErrorBoundary.tsx   # Error boundary fallback UI
-│   │
-│   ├── locales/
-│   │   ├── en/translation.json # English translations
-│   │   └── th/translation.json # Thai translations
-│   │
-│   └── pages/
-│       ├── login/
-│       │   └── LoginPage.tsx
-│       ├── dashboard/
-│       │   └── DashboardPage.tsx
-│       ├── sales/
-│       │   ├── SalesListPage.tsx
-│       │   └── SalesDetailPage.tsx
-│       ├── customers/
-│       │   ├── CustomerListPage.tsx      # 列表 + สิทธิ์จัดการตามบทบาท
-│       │   ├── CustomerDetailPage.tsx
-│       │   └── CustomerFormModal.tsx     # ฟอร์ม + auto-assign sales_id
-│       ├── projects/
-│       │   ├── ProjectListPage.tsx
-│       │   ├── ProjectDetailPage.tsx
-│       │   └── ProjectFormModal.tsx
-│       ├── profile/
-│       │   └── ProfilePage.tsx
-│       └── admin/
-│           ├── sales/AdminSalesPage.tsx       # จัดการฝ่ายขาย + สร้างผู้ใช้
-│           ├── customers/AdminCustomerPage.tsx # จัดการลูกค้า (admin view)
-│           └── projects/AdminProjectPage.tsx   # จัดการโครงการ (admin view)
-│
-├── .env.example                # Environment variables template
-├── vercel.json                 # Vercel SPA routing config
-├── vite.config.ts              # Vite config + Tailwind plugin + Code splitting
-├── tsconfig.json
-└── package.json
-```
+บังคับสองชั้นเสมอ: **ที่ฐานข้อมูล** (RLS policies + SECURITY DEFINER RPC — ลบ/ไฟล์ใน `supabase/migrations/0001_init.sql`) และ **ที่ UI** (ซ่อน/แสดงปุ่มและฟอร์มตามบทบาท) การเรียก API ตรง ๆ ข้าม UI ก็ยังโดน RLS บังคับเหมือนเดิม
 
----
+| การกระทำ | Admin | Manager | Sales |
+|---|---|---|---|
+| อ่าน Customer / Project (แถวที่ยังไม่ลบ) | ทั้งหมด | ทั้งหมด | ทั้งหมด |
+| สร้าง Customer | ได้ทุกรายการ + กำหนด Sales Owner เอง | ได้ทุกรายการ (เลือก owner หรือ auto ตัวเอง) | ได้ — auto เป็น owner ของตัวเอง |
+| แก้ไข Customer | ทั้งหมด | ทั้งหมด (แก้ Sales Owner ไม่ได้) | เฉพาะลูกค้าของตน |
+| ลบ Customer (soft delete) | ทั้งหมด | **ไม่ได้** | เฉพาะลูกค้าของตน |
+| สร้าง Project | ใต้ Customer ใดก็ได้ | ใต้ Customer ใดก็ได้ | เฉพาะใต้ Customer ของตน (ฟอร์มกรองตัวเลือกลูกค้า) |
+| แก้ไข Project | ทั้งหมด | ทั้งหมด | เฉพาะใต้ Customer ของตน |
+| ลบ Project (soft delete) | ทั้งหมด | **ไม่ได้** | เฉพาะใต้ Customer ของตน |
+| กำหนด/ย้าย Sales Owner | ได้ | อ่านอย่างเดียว (ฟอร์ม read-only) | อ่านอย่างเดียว (ฟอร์ม read-only) |
+| จัดการบัญชีผู้ใช้ (สร้าง / เปลี่ยนบทบาท / รีเซ็ตรหัสผ่าน / ปิด-เปิดบัญชี) | ได้ (หน้า `/admin/users`) | ไม่ได้ | ไม่ได้ |
+| Dashboard | ทั้งระบบ | ทั้งระบบ | เฉพาะของตน |
 
-## Routes
+กติกาที่คาดไม่ได้เลย:
 
-| Path | หน้า | สิทธิ์เข้าถึง |
-|------|------|--------|
-| `/login` | เข้าสู่ระบบ | Public |
-| `/dashboard` | แดชบอร์ด | ทุกคน |
-| `/sales` | รายการฝ่ายขาย | ทุกคน |
-| `/sales/:id` | รายละเอียดฝ่ายขาย | ทุกคน |
-| `/customers` | รายการลูกค้า | ทุกคน |
-| `/customers/:id` | รายละเอียดลูกค้า | ทุกคน |
-| `/projects` | รายการโครงการ | ทุกคน |
-| `/projects/:id` | รายละเอียดโครงการ | ทุกคน |
-| `/profile` | โปรไฟล์ของฉัน | ทุกคน |
-| `/admin/sales` | จัดการฝ่ายขาย | Admin |
-| `/admin/customers` | จัดการลูกค้า | Admin |
-| `/admin/projects` | จัดการโครงการ | Admin |
-
----
-
-## สิทธิ์การใช้งาน (Permissions)
-
-### Admin
-- จัดการฝ่ายขาย (เพิ่ม/แก้ไข/ลบ/รีเซ็ตรหัสผ่าน)
-- จัดการลูกค้าทั้งหมด (เพิ่ม/แก้ไข/ลบ + กำหนดเจ้าของลูกค้า)
-- จัดการโครงการทั้งหมด (เพิ่ม/แก้ไข/ลบ)
-- ดูแดชบอร์ดสรุปข้อมูลทั้งระบบ
-
-### Sales
-- ดูลูกค้าทั้งหมด (read-only)
-- **เพิ่มลูกค้าใหม่** — กำหนดให้เป็นลูกค้าของตัวเองโดยอัตโนมัติ
-- **แก้ไข/ลบลูกค้า** — ทำได้เฉพาะลูกค้าของตัวเองเท่านั้น
-- จัดการโครงการภายใต้ลูกค้าของตัวเอง
-- ดูแดชบอร์ดสรุปข้อมูลของตัวเอง
-
----
-
-## กฎธุรกิจ (Business Rules)
-
-| # | กฎ |
-|---|------|
-| 1 | Sales หนึ่งคน มีลูกค้าได้หลายคน |
-| 2 | ลูกค้าหนึ่งคน อยู่กับ Sales ได้คนเดียว |
-| 3 | ลูกค้าหนึ่งคน มีโครงการได้หลายโครงการ |
-| 4 | แต่ละโครงการมีงบประมาณของตัวเอง |
-| 5 | Sales สร้าง/แก้ไข/ลบ ได้เฉพาะลูกค้าของตัวเอง |
-| 6 | Sales สร้าง/แก้ไข/ลบ โครงการได้เฉพาะในลูกค้าของตัวเอง |
-| 7 | Admin เท่านั้นที่จัดการ Sales ได้ |
-| 8 | Admin เท่านั้นที่กำหนดเจ้าของลูกค้า (Sales Owner) |
-| 9 | ลบข้อมูลแบบ Soft Delete ไม่ลบจริง |
-| 10 | ใช้ UUID เป็น Primary Key ทั้งหมด |
-| 11 | ออกจากระบบอัตโนมัติเมื่อไม่มีการใช้งาน 10 นาที |
-
----
-
-## โครงสร้างฐานข้อมูล
-
-```
-auth.users (Supabase)
-    │
-    ├── profiles (id, full_name, avatar_url)
-    │       │
-    │       └── sales (id, user_id → profiles.id, sales_code, full_name, ...)
-    │               │
-    │               └── customers (id, sales_id → sales.id, customer_code, ...)
-    │                       │
-    │                       └── projects (id, customer_id → customers.id, project_code, ...)
-```
-
-RLS Policies บังคับใช้:
-- **Admin** มีสิทธิ์เข้าถึงทุกตารางแบบเต็ม
-- **Sales** อ่านข้อมูลได้ทั้งหมด แต่เขียนได้เฉพาะลูกค้าและโครงการของตัวเอง
-- **Auto-logout** เมื่อไม่มี activity เป็นเวลา 10 นาที (ติดตาม mouse, keyboard, scroll, touch)
+- **ทุก Customer ต้องมี Sales Owner เสมอ** — ปิดบัญชีหรือเลื่อนบทบาทเป็น Admin ของคนที่ยังมีลูกค้าต้องถูกบล็อกพร้อมจำนวน (ต้องย้ายเจ้าของก่อน); หน้า "ผู้ใช้" เรียก `admin_pending_reassignment_count` เตือนล่วงหน้าก่อนกด
+- **Owner-capable = Sales + Manager** — ทั้งสองบทบาทมีแถวในตาราง `sales` โดยอัตโนมัติตั้งแต่สมัคร (มีแถว = เป็นเจ้าของลูกค้าได้); **Admin ไม่มีแถว sales และเป็นเจ้าของลูกค้าไม่ได้ตลอดไป**
+- **การจัดการบัญชีผู้ใช้เป็น RPC** — `admin_create_user`, `admin_change_role`, `admin_reset_password`, `admin_set_user_active`, `admin_list_users`, `admin_pending_reassignment_count` (ตรวจสิทธิ์ Admin ทุกตัว)
+- **Ban = ห้ามล็อกอินจริง** — ปิดบัญชีตั้ง `banned_until` ไกลอนาคตใน `auth.users` GoTrue ปฏิเสธทุกการล็อกอินจนกว่าจะเปิดกลับ
+- **การลบทั้งหมดเป็น soft delete** ผ่าน RPC `soft_delete_customer` / `soft_delete_project` เท่านั้น
 
 ---
 
@@ -207,70 +74,62 @@ RLS Policies บังคับใช้:
 
 ### ข้อกำหนด
 
-- Node.js 18+
-- npm หรือ yarn หรือ pnpm
-- Supabase project (ใช้ free tier ได้)
+- Node.js 20.19+ หรือ 22.12+ (ทดสอบบน 22)
+- npm
+- Docker (รัน Supabase local stack)
+- Supabase CLI — มีใน `devDependencies` แล้ว เรียกผ่าน `npx supabase` ได้เลย ไม่ต้องติดตั้งแยก
 
-### 1. Clone โปรเจค
+### 1. Clone และติดตั้ง
 
 ```bash
 git clone https://github.com/your-username/sms.git
 cd sms
-```
-
-### 2. ติดตั้ง dependencies
-
-```bash
 npm install
 ```
 
-### 3. ตั้งค่า Environment Variables
+### 2. เริ่ม Supabase local stack
 
 ```bash
+npx supabase start       # รัน Postgres + Auth + REST API + Studio ในเครื่อง
+```
+
+### 3. สร้างฐานข้อมูลจาก migrations
+
+```bash
+npx supabase db reset    # rebuild ล้างใหม่จาก supabase/migrations + seed ได้ทุกเมื่อ
+```
+
+`supabase/migrations/0001_init.sql` เป็นไฟล์เดียวที่สร้างทั้งระบบ (สคีมา + RLS + RPC) — `db reset` คือวิธีมาตรฐานในการได้ DB ใหม่สะอาด ๆ ทุกครั้ง
+
+### 4. ตั้งค่า Environment Variables
+
+```bash
+npx supabase status      # ดู URL และ keys ของ local stack
 cp .env.example .env
 ```
 
-แก้ไข `.env` และใส่ Supabase credentials:
+แก้ไข `.env` (พอร์ตเอาจาก `npx supabase status` ของเครื่องนั้น — repo นี้ตั้ง local stack ไว้ที่พอร์ต 54351/54352):
 
 ```
-VITE_SUPABASE_URL=https://xxxxx.supabase.co
+VITE_SUPABASE_URL=http://127.0.0.1:54351
 VITE_SUPABASE_ANON_KEY=eyJ...your-anon-key...
 ```
 
-> หาได้จาก Supabase Dashboard → Settings → API
-
-### 4. ตั้งค่าฐานข้อมูล
-
-`supabase/migrations/` เป็น single source of truth. ใช้ CLI ที่ทาว:
-
-```bash
-# for local dev — run inside the worktree after `npx supabase init`
-npx supabase start      # local stack (supabase/config.toml ports)
-npx supabase db reset   # rebuilds a fresh local DB from migrations + seed
-npx supabase status     # URL + keys for .env (copy into .env; do not commit)
-```
-
-จากนั้นส้าง Admin/2 บทบาทตาม migraton ฐานแรก:
-
-- `0001_init.sql` = พฤตกรรมเดิม (2 บทบาท: profiles/sales/customers/projects
-  + updated_at triggers + RLS policies + on_auth_user_created trigger
-  + sync email/name triggers + admin_reset_user_password)
-- `seed.sql` = ข้อมูลเสถียร (optional; current no-op)
+Frontend ใช้แค่ URL + anon key เท่านั้น (ไม่มี service key ใน frontend) ถ้าจะรันชุดทดสอบ ให้เพิ่ม `VITE_SUPABASE_SERVICE_KEY` จาก `npx supabase status` ด้วย (ใช้แค่ตอน cleanup ของ test — ดูหัวข้อการทดสอบ) **ห้าม commit `.env`**
 
 ### 5. สร้าง Admin User คนแรก
 
-1. Supabase Dashboard → **Authentication → Users → Add user**
-2. ใส่อีเมลและรหัสผ่าน
-3. หลังสร้างเสร็จ คลิกที่ผู้ใช้
-4. เพิ่มใน **User Metadata**:
-   ```json
-   {
-     "role": "admin",
-     "full_name": "Admin User"
-   }
-   ```
+แอปไม่มีหน้าสมัครสมาชิก — บัญชีสร้างโดย Admin ผ่านหน้า "ผู้ใช้" เท่านั้น ดังนั้น Admin คนแรกต้องสร้างตรงที่ Supabase:
 
-> **สำคัญ:** ถ้าไม่ใส่ `"role": "admin"` ใน user metadata ผู้ใช้จะถูกมองเป็น Sales โดยอัตโนมัติ
+1. เปิด Supabase Studio: `http://127.0.0.1:54353` (พอร์ตจาก `npx supabase status`)
+2. **Authentication → Users → Add user** — ใส่อีเมล/รหัสผ่าน (email confirm ปิดอยู่ใน local config ล็อกอินได้ทันที)
+3. แก้ **User Metadata** ของผู้ใช้นั้นเป็น:
+   ```json
+   { "role": "admin", "full_name": "Admin User" }
+   ```
+4. ล็อกอินผ่านแอปด้วยบัญชีนั้น แล้วสร้างบัญชีอื่น ๆ ต่อจากหน้า **ผู้ใช้** (`/admin/users`) ได้เลย
+
+> บัญชีที่ไม่ใส่ `role` จะถูกมองเป็น Sales โดยอัตโนมัติ (ทั้ง DB `get_user_role()` และ frontend `coerceUserRole`) และเฉพาะ `sales`/`manager` เท่านั้นที่ได้แถว sales อัตโนมัติจาก trigger
 
 ### 6. เริ่ม Development Server
 
@@ -282,24 +141,130 @@ npm run dev
 
 ---
 
-## การ Deploy
+## Migrations
 
-### Vercel (แนะนำ)
+```
+supabase/
+├── migrations/
+│   └── 0001_init.sql     # ทั้งระบบในไฟล์เดียว: ตาราง + index + trigger
+│                         #   + helper functions + RLS policies + RPCs
+├── seed.sql              # seed เสถียร (ปัจจุบันเป็น no-op — tests สร้างข้อมูลเองผ่าน signup จริง)
+└── config.toml           # ค่าคงที่ของ local stack (พอร์ต, auth, seed path)
+```
 
-1. Push โค้ดไปที่ GitHub
-2. ไปที่ [vercel.com](https://vercel.com) → **New Project** → Import repo ของคุณ
-3. เพิ่ม Environment Variables:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-4. Deploy
+- **Idempotent** — `CREATE IF NOT EXISTS` / `CREATE OR REPLACE` / `DROP IF EXISTS` ทั้งไฟล์ รันซ้ำได้
+- **ต่อยอด**: เพิ่มไฟล์ใหม่ `supabase/migrations/0002_<ชื่อ>.sql` เป็น append-only migration แล้ว `npx supabase db reset` — อย่าแก้ไฟล์เก่าที่เคยถูก apply แล้ว
+- ตาราง: `profiles` (1:1 กับ `auth.users`) ← `sales` (แถวเจ้าของ) ← `customers` ← `projects`
 
-Vercel จะตรวจจับ Vite โดยอัตโนมัติ `vercel.json` จัดการ SPA routing ให้แล้ว
+---
 
-### Netlify
+## โครงสร้างโปรเจค
 
-1. Build command: `npm run build`
-2. Publish directory: `dist`
-3. เพิ่ม Environment Variables
+```
+sms/
+├── supabase/                     # migrations + seed + config (ดูหัวข้อ Migrations)
+├── src/
+│   ├── main.tsx                  # Entry point
+│   ├── App.tsx                   # Routes + Code Splitting (React.lazy)
+│   ├── index.css                 # Tailwind CSS
+│   ├── types/index.ts            # UserRole (admin|manager|sales) + entity types
+│   ├── lib/
+│   │   ├── supabase.ts           # Supabase client
+│   │   ├── i18n.ts               # i18next (th/en)
+│   │   ├── roles.ts              # coerceUserRole + isAdminRole/isManagerRole/isSalesRole
+│   │   ├── status.ts             # คลังสถานะลูกค้า/โครงการ (badge, label, filter)
+│   │   ├── audit.ts              # touchUpdatedAt() สำหรับทุก UPDATE
+│   │   └── utils.ts              # formatCurrency, formatDate
+│   ├── contexts/AuthContext.tsx  # session + role + auto-logout 10 นาที
+│   ├── services/                 # ชั้นเรียก Supabase ทั้งหมด
+│   │   ├── customer.service.ts   #   customers + soft_delete_customer RPC
+│   │   ├── project.service.ts    #   projects + soft_delete_project RPC
+│   │   ├── sales.service.ts      #   sales (อ่านอย่างเดียว)
+│   │   ├── user.service.ts       #   admin_* RPCs ทั้งหมด
+│   │   ├── dashboard.service.ts  #   รวมตัวเลขแยก scope own/org
+│   │   ├── table.ts              #   insert/update กลาง + updated_at
+│   │   └── enrichment.ts         #   ตัวเลขรวมต่อแถว (จำนวน/งบ)
+│   ├── components/
+│   │   ├── layout/               # Layout, Sidebar (เมนูตามบทบาท + สลับภาษา), Navbar
+│   │   ├── ui/                   # Button, Card, Modal, inputs, badges, ...
+│   │   ├── shared/               # แกนกลางหน้าลิสต์/ฟอร์ม/ดีเทล (ใช้ร่วมทุกบทบาท)
+│   │   ├── ProtectedRoute.tsx    # Route guard (auth + requiredRole)
+│   │   └── ErrorBoundary.tsx
+│   ├── locales/                  # en/th translation.json
+│   ├── pages/
+│   │   ├── login/                # LoginPage (+ สลับภาษา)
+│   │   ├── dashboard/            # DashboardPage (own/org ตามบทบาท)
+│   │   ├── sales/                # รายการ/รายละเอียดฝ่ายขาย (อ่านอย่างเดียว)
+│   │   ├── customers/            # ลิสต์/ดีเทล/ฟอร์มลูกค้า (ปุ่มตามบทบาท)
+│   │   ├── projects/             # ลิสต์/ดีเทล/ฟอร์มโครงการ (ฟอร์มกรองลูกค้าของตน)
+│   │   ├── profile/              # ProfilePage
+│   │   └── admin/
+│   │       ├── users/            # AdminUsersPage — จัดการบัญชีทุกบทบาท
+│   │       ├── customers/        # มุมมองจัดการลูกค้า (admin)
+│   │       └── projects/         # มุมมองจัดการโครงการ (admin)
+│   └── tests/                    # Vitest ต่อ Supabase จริง (ดูหัวข้อการทดสอบ)
+├── .env.example                  # template ของ VITE_SUPABASE_*
+├── vercel.json                   # SPA routing config
+├── vite.config.ts                # React + Tailwind plugin + manualChunks
+└── package.json
+```
+
+---
+
+## Routes
+
+| Path | หน้า | สิทธิ์เข้าถึง |
+|------|------|--------|
+| `/login` | เข้าสู่ระบบ | Public |
+| `/dashboard` | แดชบอร์ด (scope ตามบทบาท) | ทุกบทบาท |
+| `/sales`, `/sales/:id` | รายการ/รายละเอียดฝ่ายขาย | ทุกบทบาท (อ่านอย่างเดียว) |
+| `/customers`, `/customers/:id` | รายการ/รายละเอียดลูกค้า | ทุกบทบาท (แก้ไขตาม matrix) |
+| `/projects`, `/projects/:id` | รายการ/รายละเอียดโครงการ | ทุกบทบาท (แก้ไขตาม matrix) |
+| `/profile` | โปรไฟล์ของฉัน | ทุกบทบาท |
+| `/admin/users` | จัดการบัญชีผู้ใช้ | Admin |
+| `/admin/customers` | จัดการลูกค้า | Admin |
+| `/admin/projects` | จัดการโครงการ | Admin |
+
+Route guard: `ProtectedRoute` — ไม่ล็อกอิน → `/login`; บทบาทไม่ตรง `requiredRole` → `/dashboard`
+
+---
+
+## สถาปัตยกรรมสำคัญ (Architecture Notes)
+
+- **สิทธิ์บังคับที่ DB ระดับ RLS ก่อนเสมอ** — UI ซ่อนปุ่มเพื่อ UX เท่านั้น แม้ยิง API ตรงก็ติด policy เหมือนกัน (ทุกเซลล์ของ matrix มี test ยืนยัน)
+- **SECURITY DEFINER helpers** — `get_user_role()` (จาก JWT metadata), `current_sales_id()` (แถว sales ของผู้ใช้ปัจจุบัน = ตัวตั้งของ ownership), `customer_sales_owner_id()` (ค่า owner เดิมก่อน UPDATE — ใช้ปักหลักว่า Manager เปลี่ยน owner ไม่ได้)
+- **Auto sales row trigger** — `handle_new_user` บน `auth.users`: สร้าง profile ให้ทุกคน + แถว sales ให้เฉพาะ `sales`/`manager` (sales_code/username จาก metadata ถ้ามี, generate ถ้าไม่มี)
+- **Owner-capable ได้แถว sales เสมอ, Admin ไม่มี** — `admin_change_role` รักษาเงื่อนไขนี้ทั้งเลื่อนขึ้น (soft delete แถว) และลดกลับ (revive แถวเดิมหรือสร้างใหม่)
+- **Soft delete ผ่าน RPC เท่านั้น** — UPDATE ปกติที่เซ็ต `deleted_at` จะทำให้แถว fail read policy ของตัวเองกลางทาง `soft_delete_customer`/`soft_delete_project` จึงเป็นทางเดียวที่ลบได้ และเป็นตัวบังคับ "ใครลบอะไรได้"
+- **การจัดการบัญชีผ่าน RPC (ADR-0001)** — ไม่มีการ hack `signUp` จากหน้าจัดการ และไม่มี service key ใน frontend; ทุก RPC ตรวจบทบาท Admin เป็น statement แรก
+- **Auto logout 10 นาที** — จับ `mousedown`/`keydown`/`scroll`/`touchstart` reset ตัวจับเวลา
+- **i18n** — `th`/`en` สลับที่ Sidebar (และหน้าล็อกอิน) จำค่าไว้ใน `localStorage`
+
+รายละเอียดโมเดลสิทธิ์และคำตัดสินใจ: [`docs/adr/0001-permission-model.md`](docs/adr/0001-permission-model.md) · ศัพท์ของระบบ: [`CONTEXT.md`](CONTEXT.md) · ตารางตรวจระบบด้วยมือ: [`docs/manual-checklist.md`](docs/manual-checklist.md)
+
+---
+
+## การทดสอบ (Testing)
+
+ชุดทดสอบเป็น integration test จริง — **ไม่มี mock**: สมัครผู้ใช้จริงผ่าน Supabase Auth ของ local stack, ยิงผ่าน RLS จริงด้วย anon key, และ cleanup ด้วย service key ต้องรัน local Supabase ก่อน (ขั้นตอน 2–4 ด้านบน รวมถึง `VITE_SUPABASE_SERVICE_KEY` ใน `.env`)
+
+```bash
+npm test                  # ทั้งชุด (8 ไฟล์)
+npx vitest run src/tests/customer-permissions.test.ts   # เฉพาะไฟล์
+```
+
+| ไฟล์ | ครอบคลุม |
+|------|----------|
+| `supabase-smoke.test.ts` | สมัคร Sales → ได้แถว sales → เป็นเจ้าของลูกค้า → อ่านกลับได้ |
+| `three-roles.test.ts` | trigger สร้างแถว sales ตามบทบาท, ล็อกอินทักษะ, helper ownership |
+| `rls-regression.test.ts` | พฤติกรรม RLS เดิม (ยุค 2 บทบาท) ยังคงเดิมใต้โมเดล 3 บทบาท |
+| `customer-permissions.test.ts` | ทุกเซลล์ matrix ฝั่ง Customer (อ่าน/สร้าง/แก้/ลบ/owner) |
+| `project-permissions.test.ts` | ทุกเซลล์ matrix ฝั่ง Project + การกรองตัวเลือกลูกค้าของฟอร์ม |
+| `dashboard-scoping.test.ts` | scope แดชบอร์ด own/org ทั้ง 3 บทบาท |
+| `user-management.test.ts` | สร้างบัญชี/ban จริง/owner guard/เปลี่ยนบทบาท/รีเซ็ตรหัสผ่าน/RPC admin-only |
+| `role-names-i18n.test.ts` | ชื่อบทบาทครบทั้ง th/en |
+
+`docs/manual-checklist.md` คือเช็คลิสต์ตรวจด้วยมือทั้งระบบ (ทุกเซลล์ของ matrix + พฤติกรรมที่ทดสอบอัตโนมัติไม่ครอบ) พร้อมผลการตรวจล่าสุด
 
 ---
 
@@ -307,20 +272,42 @@ Vercel จะตรวจจับ Vite โดยอัตโนมัติ `ve
 
 | คำสั่ง | คำอธิบาย |
 |---------|------------|
-| `npm run dev` | เริ่ม development server |
-| `npm run build` | สร้างไฟล์ production |
+| `npm run dev` | เริ่ม development server (Vite) |
+| `npm run build` | typecheck (`tsc -b`) + สร้างไฟล์ production |
 | `npm run preview` | ดูตัวอย่าง production build |
-| `npm run lint` | รัน linter (oxlint) |
+| `npm test` | รันชุดทดสอบ (ต้องมี local Supabase + `.env`) |
+| `npm run lint` | รัน oxlint |
+| `npx supabase start` | เริ่ม Supabase local stack |
+| `npx supabase db reset` | สร้าง DB ใหม่จาก migrations + seed |
+| `npx supabase status` | ดู URL/keys ของ local stack |
+
+---
+
+## การ Deploy
+
+### Vercel (แนะนำ)
+
+1. Push โค้ดไปที่ GitHub
+2. [vercel.com](https://vercel.com) → **New Project** → Import repo
+3. เพิ่ม Environment Variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (ชี้ไปที่ Supabase project จริง)
+4. Deploy — `vercel.json` จัดการ SPA routing ให้แล้ว
+
+> ฝั่ง production ต้อง apply `supabase/migrations/0001_init.sql` กับ Supabase project จริงด้วย (`supabase db push` หลัง link project)
+
+### Netlify
+
+1. Build command: `npm run build`, Publish directory: `dist`
+2. เพิ่ม Environment Variables เดียวกัน
 
 ---
 
 ## ความปลอดภัย
 
-- **Row Level Security (RLS)** — บังคับใช้ที่ระดับฐานข้อมูล ไม่ใช่แค่ frontend
-- **UUID Primary Keys** — ไม่เปิดเผย internal IDs ใน URL หรือใช้สำหรับ auth
-- **Soft Delete** — ข้อมูลไม่ถูกลบจริง สามารถกู้คืนได้
-- **รหัสผ่านไม่แสดง** — ไม่แสดงรหัสผ่านแบบ plain text
-- **Supabase Anon Key เท่านั้น** — ไม่ใช้ service role key ใน frontend
+- **Row Level Security (RLS)** — บังคับที่ระดับฐานข้อมูล ไม่ใช่แค่ frontend
+- **Supabase Anon Key เท่านั้นใน frontend** — service key ใช้เฉพาะใน test cleanup และไม่เข้าใกล้ app bundle
+- **SECURITY DEFINER RPC** — ทุกตัวตรวจบทบาทเอง และมี `REVOKE`/`GRANT` ชัดเจนต่อฟังก์ชัน
+- **รหัสผ่านไม่แสดง** — เก็บ bcrypt hash ฝั่ง DB (`crypt`/`gen_salt`) reset ผ่าน RPC ตรวจสิทธิ์ Admin
+- **Soft Delete** — ข้อมูลไม่ถูกลบจริง (`deleted_at` + สถานะเปลี่ยน)
 - **Auto Logout** — ออกจากระบบอัตโนมัติหลังไม่มีการใช้งาน 10 นาที
 
 ---
