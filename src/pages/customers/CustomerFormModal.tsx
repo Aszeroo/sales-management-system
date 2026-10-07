@@ -26,13 +26,14 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
   const { isAdmin, user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [salesList, setSalesList] = useState<Sales[]>([]);
-  const [mySalesId, setMySalesId] = useState<string | null>(null);
+  // The signed-in manager/sales user's own sales row — they are Owner-capable
+  // (ADR-0001), so their own row pre-fills the read-only Sales Owner field on
+  // create (the DB auto-assigns it as well, see migration 0003).
+  const [mySales, setMySales] = useState<Sales | null>(null);
 
   useEffect(() => {
     if (!isAdmin && user?.id) {
-      salesService.getByUserId(user.id).then((s) => {
-        if (s) setMySalesId(s.id);
-      });
+      salesService.getByUserId(user.id).then((s) => setMySales(s));
     }
   }, [isAdmin, user]);
 
@@ -87,11 +88,11 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
         email: '',
         address: '',
         description: '',
-        sales_id: mySalesId || '',
+        sales_id: mySales?.id || '',
         status: 'active',
       });
     }
-  }, [customer, isAdmin, reset, mySalesId]);
+  }, [customer, isAdmin, reset, mySales]);
 
   const onSubmit = async (data: CustomerFormData) => {
     setLoading(true);
@@ -123,6 +124,16 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
       setLoading(false);
     }
   };
+
+  // Read-only Sales Owner display: on create it is the signed-in
+  // owner-capable user (they become the owner), on edit it is the customer's
+  // current owner from the joined sales row. Assigning/moving the Sales
+  // Owner is Admin-only (Permission Matrix), so this field is never
+  // editable for manager/sales.
+  const displayOwner = customer ? customer.sales || null : mySales;
+  const ownerLabel = displayOwner
+    ? `${displayOwner.sales_code} - ${displayOwner.full_name}`
+    : '';
 
   return (
     <Modal
@@ -184,7 +195,18 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
             placeholder={t('customerPage.selectSales')}
           />
         ) : (
-          <input type="hidden" {...register('sales_id')} />
+          <div>
+            <TextInput
+              label={t('customerPage.salesOwner') + ' *'}
+              value={ownerLabel}
+              readOnly
+              disabled
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              {t('customerPage.ownerReadOnlyHint')}
+            </p>
+            <input type="hidden" {...register('sales_id')} />
+          </div>
         )}
 
         <Select

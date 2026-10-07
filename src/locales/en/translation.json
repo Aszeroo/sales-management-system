@@ -149,6 +149,7 @@
     "address": "Address",
     "description": "Description",
     "salesOwner": "Sales Owner",
+    "ownerReadOnlyHint": "Only an Admin can assign or move the Sales Owner",
     "selectSales": "Select Sales",
     "createCustomer": "Create Customer",
     "updateCustomer": "Update Customer"

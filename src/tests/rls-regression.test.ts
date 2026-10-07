@@ -9,8 +9,11 @@ import { getEnvUrl, getEnvAnonKey, getEnvServiceKey } from './helpers/env'
  * existing 2-role behavior —
  *   - Sales manages ONLY its own customers/projects (everyone reads
  *     non-deleted rows),
- *   - Manager gets NO new write rights in this ticket,
  *   - admin keeps full access.
+ *
+ * (Issue #4 later opened manager write rights on customers — that contract
+ * lives in customer-permissions.test.ts; this file only keeps the behavior
+ * that must stay unchanged.)
  *
  * Seeded through the real signup path (the signup trigger runs for real)
  * against the local Supabase; cleanup uses the local service-role key
@@ -187,8 +190,11 @@ describe('RLS regression: 2-role behavior preserved under the 3-role model', () 
     expect(codes).toContain(createdCustomerCodes[0]) // the seeded sales B customer
   })
 
-  test('manager can read customers but gets no write rights (tickets #4/#5)', async () => {
-    // Manager owns a sales row too, but this ticket opens no new write rights.
+  test('manager can read every non-deleted customer (write rights since #4)', async () => {
+    // Reading everything is the part of the 2-role behavior that still holds
+    // for the manager. The manager's insert/update rights opened in #4 are
+    // covered by customer-permissions.test.ts — including what is still
+    // forbidden (delete, Sales Owner changes).
     const { data, error: readError } = await users.manager.client
       .from('customers')
       .select('customer_code')
@@ -197,22 +203,6 @@ describe('RLS regression: 2-role behavior preserved under the 3-role model', () 
     expect((data ?? []).map((r) => (r as { customer_code: string }).customer_code)).toContain(
       createdCustomerCodes[0],
     )
-
-    const rnd = crypto.randomUUID().slice(0, 8)
-    const { error: insertError } = await insertCustomer(
-      users.manager.client,
-      `RLSM-C-${rnd}`,
-      users.manager.salesId as string,
-    )
-    expect(insertError).not.toBeNull()
-
-    const { data: updated, error: updateError } = await users.manager.client
-      .from('customers')
-      .update({ customer_name: 'Manager was here' })
-      .eq('sales_id', users.salesB.salesId as string)
-      .select()
-    expect(updateError).toBeNull()
-    expect((updated ?? []).length).toBe(0)
   })
 
   test('admin keeps full access on customers', async () => {
