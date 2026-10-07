@@ -226,6 +226,9 @@
     "projectsByStatus": "Projects by Status",
     "customersBySales": "Customers by Sales"
   },
+  "dashboardOrg": {
+    "title": "Organization Dashboard"
+  },
   "dashboardSales": {
     "title": "Dashboard",
     "myCustomers": "My Customers",

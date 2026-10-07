@@ -100,3 +100,27 @@ export interface SalesDashboardStats {
   projectsByStatus: { name: string; value: number }[];
   recentProjects: ProjectWithCustomer[];
 }
+
+// Role-true dashboard data (issue #6). `scope` states whose reality the
+// numbers describe — 'own' covers only the current Sales user's customers and
+// projects, 'org' covers the whole system (Manager/Admin). Labels must match
+// the scope: org-wide numbers must never be captioned "my …" and vice versa.
+export type DashboardScope = 'own' | 'org';
+
+export interface OwnDashboardData {
+  scope: 'own';
+  /** The current user's Sales Owner row (ADR-0001) — null when they have none. */
+  salesId: string | null;
+  customers: CustomerWithCounts[];
+  projects: ProjectWithCustomer[];
+}
+
+export interface OrgDashboardData {
+  scope: 'org';
+  salesList: SalesWithCounts[];
+  totalCustomers: number;
+  totalProjects: number;
+  totalBudget: number;
+}
+
+export type DashboardData = OwnDashboardData | OrgDashboardData;

@@ -226,6 +226,9 @@
     "projectsByStatus": "โครงการตามสถานะ",
     "customersBySales": "ลูกค้าตามฝ่ายขาย"
   },
+  "dashboardOrg": {
+    "title": "แดชบอร์ดทั้งระบบ"
+  },
   "dashboardSales": {
     "title": "แดชบอร์ด",
     "myCustomers": "ลูกค้าของฉัน",
