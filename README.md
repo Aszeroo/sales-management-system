@@ -46,12 +46,10 @@
 ```
 sms/
 ├── supabase/
-│   ├── schema.sql              # โครงสร้างฐานข้อมูล + RLS Policies + Triggers
-│   ├── fix-signup-v4.sql       # แก้ไขปัญหา signup trigger (รันหลัง schema.sql)
-│   ├── fix-confirm-email.sql   # แก้ไขการยืนยันอีเมล
-│   ├── fix-admin-role.sql      # แก้ไขบทบาท admin
-│   ├── fix-sales-rls.sql       # แก้ไข RLS สำหรับฝ่ายขาย
-│   └── fix-signup-v*.sql       # เวอร์ชันก่อนหน้าของ fix signup
+│   ├── migrations/             # Single source of truth for the database
+│   │   └── 0001_init.sql       # Bas migration: 2-role schema + RLS + triggers
+│   ├── seed.sql              # Stable seed data for local dev/tests
+│   └── config.toml             # supabase init config (ports/CLI config)
 ├── public/
 │   └── favicon.svg             # Favicon
 ├── src/
@@ -243,23 +241,21 @@ VITE_SUPABASE_ANON_KEY=eyJ...your-anon-key...
 
 ### 4. ตั้งค่าฐานข้อมูล
 
-1. เปิด Supabase Dashboard → **SQL Editor**
-2. คัดลอกเนื้อหาจาก `supabase/schema.sql`
-3. วางและกด **Run**
+`supabase/migrations/` เป็น single source of truth. ใช้ CLI ที่ทาว:
 
-จากนั้นรัน fix scripts (ตามลำดับ):
 ```bash
-# รันใน Supabase SQL Editor
-# 1. schema.sql (หลัก)
-# 2. fix-signup-v4.sql (แก้ไข signup trigger)
+# for local dev — run inside the worktree after `npx supabase init`
+npx supabase start      # local stack (supabase/config.toml ports)
+npx supabase db reset   # rebuilds a fresh local DB from migrations + seed
+npx supabase status     # URL + keys for .env (copy into .env; do not commit)
 ```
 
-สิ่งที่สร้างขึ้น:
-- 4 ตาราง (profiles, sales, customers, projects)
-- Indexes สำหรับประสิทธิภาพ
-- Row Level Security policies
-- Trigger สำหรับสร้าง profile อัตโนมัติเมื่อสมัครสมาชิก
-- Trigger สำหรับ sync อีเมลและชื่อระหว่าง sales ↔ auth.users
+จากนั้นส้าง Admin/2 บทบาทตาม migraton ฐานแรก:
+
+- `0001_init.sql` = พฤตกรรมเดิม (2 บทบาท: profiles/sales/customers/projects
+  + updated_at triggers + RLS policies + on_auth_user_created trigger
+  + sync email/name triggers + admin_reset_user_password)
+- `seed.sql` = ข้อมูลเสถียร (optional; current no-op)
 
 ### 5. สร้าง Admin User คนแรก
 
