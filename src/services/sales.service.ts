@@ -3,8 +3,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Sales, SalesWithCounts } from '@/types';
 
 export const salesService = {
-  async getAll(): Promise<SalesWithCounts[]> {
-    const { data, error } = await supabase
+  /**
+   * Every sales row with per-owner Customer/Project counts. The client is
+   * injectable like the other services' seams so tests (and the dashboard
+   * service) can drive it with their own signed-in supabase-js client —
+   * real RLS, no mocks (see src/tests/*).
+   */
+  async getAll(client: SupabaseClient = supabase): Promise<SalesWithCounts[]> {
+    const { data, error } = await client
       .from('sales')
       .select('*')
       .is('deleted_at', null)
@@ -15,13 +21,13 @@ export const salesService = {
     // Get counts and budgets for each sales
     const results: SalesWithCounts[] = [];
     for (const s of data || []) {
-      const { count: customerCount } = await supabase
+      const { count: customerCount } = await client
         .from('customers')
         .select('*', { count: 'exact', head: true })
         .eq('sales_id', s.id)
         .is('deleted_at', null);
 
-      const { data: customers } = await supabase
+      const { data: customers } = await client
         .from('customers')
         .select('id')
         .eq('sales_id', s.id)
@@ -33,7 +39,7 @@ export const salesService = {
       let totalBudget = 0;
 
       if (customerIds.length > 0) {
-        const { count: pc } = await supabase
+        const { count: pc } = await client
           .from('projects')
           .select('*', { count: 'exact', head: true })
           .in('customer_id', customerIds)
@@ -41,7 +47,7 @@ export const salesService = {
 
         projectCount = pc || 0;
 
-        const { data: projects } = await supabase
+        const { data: projects } = await client
           .from('projects')
           .select('budget')
           .in('customer_id', customerIds)

@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
-import { salesService } from '@/services/sales.service';
-import { customerService } from '@/services/customer.service';
-import { projectService } from '@/services/project.service';
+import { dashboardService } from '@/services/dashboard.service';
 import { Card, CardStat } from '@/components/ui/Card';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -27,50 +25,35 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import type { SalesWithCounts, ProjectWithCustomer } from '@/types';
+import type { DashboardData, OrgDashboardData, OwnDashboardData } from '@/types';
 
 const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
 export default function DashboardPage() {
   const { t } = useTranslation();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isManager } = useAuth();
   const [loading, setLoading] = useState(true);
-
-  // Admin data
-  const [salesList, setSalesList] = useState<SalesWithCounts[]>([]);
-  const [totalCustomers, setTotalCustomers] = useState(0);
-  const [totalProjects, setTotalProjects] = useState(0);
-  const [totalBudget, setTotalBudget] = useState(0);
-
-  // Sales data
-  const [myProjects, setMyProjects] = useState<ProjectWithCustomer[]>([]);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
 
   useEffect(() => {
     loadData();
-  }, [isAdmin, user]);
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, [isAdmin, isManager, user]);
 
   async function loadData() {
     try {
       setLoading(true);
-      if (isAdmin) {
-        const [sales, customers, projects] = await Promise.all([
-          salesService.getAll(),
-          customerService.getAll(),
-          projectService.getAll(),
-        ]);
-        setSalesList(sales);
-        setTotalCustomers(customers.length);
-        setTotalProjects(projects.length);
-        setTotalBudget(projects.reduce((sum, p) => sum + (p.budget || 0), 0));
-      } else {
-        // Sales user - get their own data
-        const projects = await projectService.getAll();
-        // Filter projects for this sales user's customers
-        // For now, we use the RLS to filter
-        setMyProjects(projects.slice(0, 10));
-      }
+      // The service decides the scope from the signed-in session: Sales gets
+      // own-only aggregates, Manager/Admin get org-wide ones (issue #6).
+      setDashboard(await dashboardService.getDashboardData());
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
+      // Zeroed fallback of the right scope keeps the page renderable.
+      setDashboard(
+        isAdmin || isManager
+          ? { scope: 'org', salesList: [], totalCustomers: 0, totalProjects: 0, totalBudget: 0 }
+          : { scope: 'own', salesId: null, customers: [], projects: [] },
+      );
     } finally {
       setLoading(false);
     }
@@ -80,63 +63,68 @@ export default function DashboardPage() {
     return <LoadingSpinner />;
   }
 
-  if (isAdmin) {
-    return <AdminDashboard salesList={salesList} totalCustomers={totalCustomers} totalProjects={totalProjects} totalBudget={totalBudget} t={t} />;
+  // Scope comes from the service, so the caption can never outlive the data:
+  // org view (Manager/Admin) and own view (Sales) are separate renderings.
+  if (dashboard?.scope === 'org') {
+    return (
+      <OrgDashboard
+        data={dashboard}
+        title={isAdmin ? t('dashboardAdmin.title') : t('dashboardOrg.title')}
+      />
+    );
   }
-
-  return <SalesDashboard myProjects={myProjects} t={t} />;
+  if (dashboard?.scope === 'own') {
+    return <SalesDashboard data={dashboard} t={t} />;
+  }
+  return null;
 }
 
-function AdminDashboard({
-  salesList,
-  totalCustomers,
-  totalProjects,
-  totalBudget,
-  t,
+function OrgDashboard({
+  data,
+  title,
 }: {
-  salesList: SalesWithCounts[];
-  totalCustomers: number;
-  totalProjects: number;
-  totalBudget: number;
-  t: (key: string) => string;
+  data: OrgDashboardData;
+  title: string;
 }) {
-  const budgetBySales = salesList.map((s) => ({
+  const { t } = useTranslation();
+
+  const budgetBySales = data.salesList.map((s) => ({
     name: s.full_name,
     budget: s.total_budget || 0,
   }));
 
-  const customersBySales = salesList.map((s) => ({
+  const customersBySales = data.salesList.map((s) => ({
     name: s.full_name,
     count: s.customer_count || 0,
   }));
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">{t('dashboardAdmin.title')}</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <CardStat
           label={t('dashboardAdmin.totalSales')}
-          value={salesList.length}
+          value={data.salesList.length}
           icon={<Users size={24} />}
           color="blue"
         />
         <CardStat
           label={t('dashboardAdmin.totalCustomers')}
-          value={totalCustomers}
+          value={data.totalCustomers}
           icon={<BriefcaseBusiness size={24} />}
           color="green"
         />
         <CardStat
           label={t('dashboardAdmin.totalProjects')}
-          value={totalProjects}
+          value={data.totalProjects}
           icon={<FolderKanban size={24} />}
           color="purple"
         />
         <CardStat
           label={t('dashboardAdmin.totalBudget')}
-          value={formatCurrency(totalBudget)}
+          value={formatCurrency(data.totalBudget)}
           icon={<DollarSign size={24} />}
           color="orange"
         />
@@ -183,12 +171,17 @@ function AdminDashboard({
 }
 
 function SalesDashboard({
-  myProjects,
+  data,
   t,
 }: {
-  myProjects: ProjectWithCustomer[];
+  data: OwnDashboardData;
   t: (key: string) => string;
 }) {
+  // Everything below covers ONLY the signed-in Sales user's own customers and
+  // the projects under them — the "my …" captions are true by construction.
+  const myCustomers = data.customers;
+  const myProjects = data.projects;
+
   // Compute status counts
   const statusCounts = myProjects.reduce(
     (acc, p) => {
@@ -212,7 +205,13 @@ function SalesDashboard({
       <h1 className="text-2xl font-bold text-gray-900">{t('dashboardSales.title')}</h1>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <CardStat
+          label={t('dashboardSales.myCustomers')}
+          value={myCustomers.length}
+          icon={<BriefcaseBusiness size={24} />}
+          color="green"
+        />
         <CardStat
           label={t('dashboardSales.myProjects')}
           value={myProjects.length}
@@ -223,7 +222,7 @@ function SalesDashboard({
           label={t('dashboardSales.myTotalBudget')}
           value={formatCurrency(totalBudget)}
           icon={<DollarSign size={24} />}
-          color="green"
+          color="orange"
         />
         <CardStat
           label={t('dashboardSales.projectStatusSummary')}
