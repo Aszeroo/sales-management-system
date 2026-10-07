@@ -27,10 +27,11 @@
 ชนิดบทบาทใหม่ (`src/types/index.ts`):
 
 ```ts
-export type UserRole = 'admin' | 'manager' | 'sales';
+export const USER_ROLES = ['admin', 'manager', 'sales'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
 ```
 
-Trigger สร้างแถว sales อัตโนมัติ — สร้างเมื่อ role เป็น owner-capable เท่านั้น (ยืดจาก `handle_new_user` เดิมใน `supabase/schema.sql`):
+Trigger สร้างแถว sales อัตโนมัติ — สร้างเมื่อ role เป็น owner-capable เท่านั้น (ยืดจาก `handle_new_user` เดิม ปัจจุบันอยู่ใน `supabase/migrations/0001_init.sql`):
 
 ```sql
 -- pseudo: ภายใน trigger หลังสร้าง profiles
@@ -50,4 +51,4 @@ $$;
 -- policy ownership เช็ค: customer.sales_id = current_sales_id()
 ```
 
-การเปลี่ยนบทบาท/ปิดบัญชี/สร้างผู้ใช้ ใช้ SECURITY DEFINER RPC ที่ Admin เรียกผ่าน anon key (แทนการ hack `signUp` เดิมของหน้าจัดการ Sales ที่ถูกแทนด้วยหน้า "ผู้ใช้" รวม — issue #7, migration `0005_user_management.sql`) — ดูเพิ่มเติม: `src/contexts/AuthContext.tsx` (role + auto-logout), `src/components/ProtectedRoute.tsx` (route guard)
+การเปลี่ยนบทบาท/ปิดบัญชี/สร้างผู้ใช้ ใช้ SECURITY DEFINER RPC ที่ Admin เรียกผ่าน anon key (แทนการ hack `signUp` เดิมของหน้าจัดการ Sales ที่ถูกแทนด้วยหน้า "ผู้ใช้" รวม — issue #7; RPC ทั้งหมด (`admin_create_user`, `admin_change_role`, `admin_reset_password`, `admin_set_user_active`, `admin_list_users`, `admin_pending_reassignment_count`) ปัจจุบันอยู่ใน `supabase/migrations/0001_init.sql`) — ดูเพิ่มเติม: `src/contexts/AuthContext.tsx` (role + auto-logout), `src/components/ProtectedRoute.tsx` (route guard)
