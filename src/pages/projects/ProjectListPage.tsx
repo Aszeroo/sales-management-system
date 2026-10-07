@@ -1,19 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
-import { Eye, Pencil, Trash2, Plus, FolderKanban } from 'lucide-react';
+import { FolderKanban } from 'lucide-react';
 import { projectService } from '@/services/project.service';
 import { salesService } from '@/services/sales.service';
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { SearchInput } from '@/components/ui/SearchInput';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { PROJECT_STATUSES, statusFilterOptions } from '@/lib/status';
 import { useAuth } from '@/contexts/AuthContext';
-import Swal from 'sweetalert2';
+import { CrudListPage, CodeChip, ItemActionRow } from '@/components/shared/list';
 import type { ProjectWithCustomer } from '@/types';
 import { ProjectFormModal } from './ProjectFormModal';
 
@@ -27,44 +22,17 @@ export default function ProjectListPage() {
   // The DB enforces the same cells via RLS (migration 0004); the UI hides
   // the buttons so the matrix is honored at both layers.
   const canCreateProjects = isAdmin || isManager || isSales;
-  const [projects, setProjects] = useState<ProjectWithCustomer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [showForm, setShowForm] = useState(false);
-  const [editingProject, setEditingProject] = useState<ProjectWithCustomer | null>(null);
   const [mySalesId, setMySalesId] = useState<string | null>(null);
 
+  // Get current user's sales_id for permission checks (ownership derives
+  // through the Customer: project.customer.sales_id, ADR-0001)
   useEffect(() => {
-    loadProjects();
-    // Get current user's sales_id for permission checks (ownership derives
-    // through the Customer: project.customer.sales_id, ADR-0001)
     if (!isAdmin && user?.id) {
       salesService.getByUserId(user.id).then((s) => {
         if (s) setMySalesId(s.id);
       });
     }
   }, [isAdmin, user]);
-
-  async function loadProjects() {
-    try {
-      const data = await projectService.getAll();
-      setProjects(data);
-    } catch (err) {
-      console.error('Failed to load projects:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const filtered = projects.filter((p) => {
-    const matchSearch =
-      p.project_name.toLowerCase().includes(search.toLowerCase()) ||
-      p.project_code.toLowerCase().includes(search.toLowerCase()) ||
-      p.customer?.customer_name?.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === 'all' || p.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
 
   function isOwnCustomerProject(p: ProjectWithCustomer): boolean {
     return isSales && p.customer?.sales_id === mySalesId;
@@ -79,151 +47,56 @@ export default function ProjectListPage() {
     return isAdmin || isOwnCustomerProject(p);
   }
 
-  async function handleDelete(project: ProjectWithCustomer) {
-    const result = await Swal.fire({
-      title: t('common.confirmDeleteTitle'),
-      text: t('common.confirmDelete'),
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#EF4444',
-      confirmButtonText: t('common.delete'),
-      cancelButtonText: t('common.cancel'),
-    });
-
-    if (result.isConfirmed) {
-      try {
-        await projectService.softDelete(project.id);
-        setProjects(projects.filter((p) => p.id !== project.id));
-        Swal.fire(t('common.success'), '', 'success');
-      } catch {
-        Swal.fire(t('common.error'), '', 'error');
-      }
-    }
-  }
-
-  function handleEdit(project: ProjectWithCustomer) {
-    setEditingProject(project);
-    setShowForm(true);
-  }
-
-  function handleCreate() {
-    setEditingProject(null);
-    setShowForm(true);
-  }
-
-  async function handleFormSuccess() {
-    setShowForm(false);
-    setEditingProject(null);
-    await loadProjects();
-  }
-
-  if (loading) return <LoadingSpinner />;
-
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">{t('projectPage.title')}</h1>
-        {canCreateProjects && (
-          <Button onClick={handleCreate}>
-            <Plus size={18} />
-            {t('projectPage.addProject')}
-          </Button>
-        )}
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-3">
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder={t('common.search')}
-          className="w-full sm:w-80"
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {statusFilterOptions(PROJECT_STATUSES, t).map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-      </div>
-
-      {filtered.length === 0 ? (
-        <EmptyState
-          icon={<FolderKanban size={48} />}
-          title={t('common.noData')}
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((p) => (
-            <Card key={p.id} className="hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <span className="text-xs font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                  {p.project_code}
-                </span>
-                <StatusBadge status={p.status} />
-              </div>
-
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">{p.project_name}</h3>
-              <p className="text-sm text-gray-500 mb-3">{p.customer?.customer_name || '-'}</p>
-
-              <div className="space-y-2 text-sm text-gray-600 mb-4">
-                <div className="flex justify-between">
-                  <span>{t('projectPage.budget')}</span>
-                  <span className="text-gray-900 font-medium">{formatCurrency(p.budget)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>{t('projectPage.startDate')}</span>
-                  <span className="text-gray-900">{formatDate(p.start_date)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>{t('projectPage.endDate')}</span>
-                  <span className="text-gray-900">{formatDate(p.end_date)}</span>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Link
-                  to={`/projects/${p.id}`}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm font-medium transition-colors"
-                >
-                  <Eye size={14} />
-                  {t('common.view')}
-                </Link>
-                {canEditProject(p) && (
-                  <button
-                    onClick={() => handleEdit(p)}
-                    className="flex items-center justify-center px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                )}
-                {canDeleteProject(p) && (
-                  <button
-                    onClick={() => handleDelete(p)}
-                    className="flex items-center justify-center px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </div>
-            </Card>
-          ))}
-        </div>
+    <CrudListPage<ProjectWithCustomer>
+      title={t('projectPage.title')}
+      createLabel={canCreateProjects ? t('projectPage.addProject') : undefined}
+      emptyIcon={<FolderKanban size={48} />}
+      load={() => projectService.getAll()}
+      getId={(p) => p.id}
+      matchesSearch={(p, q) =>
+        p.project_name.toLowerCase().includes(q) ||
+        p.project_code.toLowerCase().includes(q) ||
+        (p.customer?.customer_name?.toLowerCase().includes(q) ?? false)
+      }
+      statusOptions={statusFilterOptions(PROJECT_STATUSES, t)}
+      statusOf={(p) => p.status}
+      deleteItem={(p) => projectService.softDelete(p.id)}
+      renderForm={(editing, close, onSaved) => (
+        <ProjectFormModal isOpen onClose={close} onSuccess={onSaved} project={editing} />
       )}
+      renderCard={(p, actions) => (
+        <Card className="hover:shadow-md transition-shadow">
+          <div className="flex items-start justify-between mb-3">
+            <CodeChip code={p.project_code} />
+            <StatusBadge status={p.status} />
+          </div>
 
-      {showForm && (
-        <ProjectFormModal
-          isOpen={showForm}
-          onClose={() => {
-            setShowForm(false);
-            setEditingProject(null);
-          }}
-          onSuccess={handleFormSuccess}
-          project={editingProject}
-        />
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">{p.project_name}</h3>
+          <p className="text-sm text-gray-500 mb-3">{p.customer?.customer_name || '-'}</p>
+
+          <div className="space-y-2 text-sm text-gray-600 mb-4">
+            <div className="flex justify-between">
+              <span>{t('projectPage.budget')}</span>
+              <span className="text-gray-900 font-medium">{formatCurrency(p.budget)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>{t('projectPage.startDate')}</span>
+              <span className="text-gray-900">{formatDate(p.start_date)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>{t('projectPage.endDate')}</span>
+              <span className="text-gray-900">{formatDate(p.end_date)}</span>
+            </div>
+          </div>
+
+          <ItemActionRow
+            viewHref={`/projects/${p.id}`}
+            onEdit={canEditProject(p) ? actions.onEdit : undefined}
+            onDelete={canDeleteProject(p) ? actions.onDelete : undefined}
+          />
+        </Card>
       )}
-    </div>
+    />
   );
 }

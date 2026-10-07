@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Users, KeyRound, UserCog, Ban, RotateCcw } from 'lucide-react';
+import { Users, KeyRound, UserCog, Ban, RotateCcw } from 'lucide-react';
 import { userService } from '@/services/user.service';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { SearchInput } from '@/components/ui/SearchInput';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Modal } from '@/components/ui/Modal';
 import { TextInput } from '@/components/ui/TextInput';
 import { Select } from '@/components/ui/Select';
@@ -18,6 +17,8 @@ import Swal from 'sweetalert2';
 import { isAdminRole } from '@/lib/roles';
 import { USER_ROLES } from '@/types';
 import type { ManagedUser } from '@/types';
+import { CardGrid, ListPageHeader, ListToolbar } from '@/components/shared/list';
+import { useCrudList } from '@/components/shared/useCrudList';
 
 /**
  * Unified users page for Admin (issue #7, ADR-0001): every User of every
@@ -25,6 +26,10 @@ import type { ManagedUser } from '@/types';
  * SECURITY DEFINER RPCs — create with any role, reset password, change
  * role, real deactivate/reactivate. The old per-sales management page is
  * fully replaced by this page.
+ *
+ * The list logic (load/search/modal wiring) comes from the shared CRUD
+ * module; the account operations and their two extra modals stay here
+ * because they are unique to this page.
  */
 
 const ROLES = USER_ROLES;
@@ -43,35 +48,21 @@ function describeRpcError(message: string, t: (key: string, opts?: Record<string
 
 export default function AdminUsersPage() {
   const { t } = useTranslation();
-  const [users, setUsers] = useState<ManagedUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [showForm, setShowForm] = useState(false);
   const [resetTarget, setResetTarget] = useState<ManagedUser | null>(null);
   const [roleTarget, setRoleTarget] = useState<ManagedUser | null>(null);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  async function loadUsers() {
-    try {
-      const data = await userService.getAll();
-      setUsers(data);
-    } catch (err) {
-      console.error('Failed to load users:', err);
+  const list = useCrudList<ManagedUser>({
+    load: () => userService.getAll(),
+    getId: (u) => u.user_id,
+    matchesSearch: (u, q) =>
+      u.full_name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      (u.sales_code || '').toLowerCase().includes(q),
+    renderForm: (_editing, close, onSaved) => <CreateUserModal onClose={close} onSuccess={onSaved} />,
+    onLoadError: (err) => {
       Swal.fire(t('common.error'), describeRpcError((err as Error).message, t), 'error');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const filtered = users.filter(
-    (u) =>
-      u.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      (u.sales_code || '').toLowerCase().includes(search.toLowerCase())
-  );
+    },
+  });
 
   async function handleDeactivate(u: ManagedUser) {
     // Advance warning BEFORE attempting (ADR-0001): a Sales Owner cannot
@@ -101,7 +92,7 @@ export default function AdminUsersPage() {
     try {
       await userService.setActive(u.user_id, false);
       Swal.fire(t('common.success'), t('adminUsers.deactivated'), 'success');
-      loadUsers();
+      void list.reload();
     } catch (err) {
       Swal.fire(t('common.error'), describeRpcError((err as Error).message, t), 'error');
     }
@@ -121,36 +112,24 @@ export default function AdminUsersPage() {
     try {
       await userService.setActive(u.user_id, true);
       Swal.fire(t('common.success'), t('adminUsers.reactivated'), 'success');
-      loadUsers();
+      void list.reload();
     } catch (err) {
       Swal.fire(t('common.error'), describeRpcError((err as Error).message, t), 'error');
     }
   }
 
-  if (loading) return <LoadingSpinner />;
+  if (list.loading) return <LoadingSpinner />;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">{t('adminUsers.title')}</h1>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus size={18} />
-          {t('adminUsers.addUser')}
-        </Button>
-      </div>
+      <ListPageHeader title={t('adminUsers.title')} createLabel={t('adminUsers.addUser')} onCreate={list.openCreate} />
+      <ListToolbar search={list.search} onSearchChange={list.setSearch} />
 
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder={t('common.search')}
-        className="w-full sm:w-80"
-      />
-
-      {filtered.length === 0 ? (
+      {list.filtered.length === 0 ? (
         <EmptyState icon={<Users size={48} />} title={t('common.noData')} />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((u) => (
+        <CardGrid>
+          {list.filtered.map((u) => (
             <Card key={u.user_id} className="hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-3">
                 <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
@@ -200,25 +179,12 @@ export default function AdminUsersPage() {
               </div>
             </Card>
           ))}
-        </div>
+        </CardGrid>
       )}
 
-      {showForm && (
-        <CreateUserModal
-          onClose={() => setShowForm(false)}
-          onSuccess={() => {
-            setShowForm(false);
-            loadUsers();
-          }}
-        />
-      )}
+      {list.formModal}
 
-      {resetTarget && (
-        <ResetPasswordModal
-          target={resetTarget}
-          onClose={() => setResetTarget(null)}
-        />
-      )}
+      {resetTarget && <ResetPasswordModal target={resetTarget} onClose={() => setResetTarget(null)} />}
 
       {roleTarget && (
         <ChangeRoleModal
@@ -226,7 +192,7 @@ export default function AdminUsersPage() {
           onClose={() => setRoleTarget(null)}
           onSuccess={() => {
             setRoleTarget(null);
-            loadUsers();
+            void list.reload();
           }}
         />
       )}
