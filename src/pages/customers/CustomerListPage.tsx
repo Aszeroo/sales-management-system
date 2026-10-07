@@ -1,34 +1,24 @@
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BriefcaseBusiness } from 'lucide-react';
 import { customerService } from '@/services/customer.service';
-import { salesService } from '@/services/sales.service';
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatCurrency } from '@/lib/utils';
 import { CUSTOMER_STATUSES, statusFilterOptions } from '@/lib/status';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMySalesId } from '@/components/shared/useMySalesId';
 import { CrudListPage, CodeChip, ItemActionRow } from '@/components/shared/list';
 import type { CustomerWithCounts } from '@/types';
 import { CustomerFormModal } from './CustomerFormModal';
 
 export default function CustomerListPage() {
   const { t } = useTranslation();
-  const { isAdmin, isManager, isSales, user } = useAuth();
+  const { isAdmin, isManager, isSales } = useAuth();
   // Permission Matrix (issue #4): every role can create/edit customers here —
   // Sales Owner changes are Admin-only (read-only field on the form) and
   // deletion is Admin/Sales-only, so the buttons below are gated separately.
   const canManageCustomers = isAdmin || isManager || isSales;
-  const [mySalesId, setMySalesId] = useState<string | null>(null);
-
-  // Get current user's sales_id for permission checks
-  useEffect(() => {
-    if (!isAdmin && user?.id) {
-      salesService.getByUserId(user.id).then((s) => {
-        if (s) setMySalesId(s.id);
-      });
-    }
-  }, [isAdmin, user]);
+  const mySalesId = useMySalesId();
 
   return (
     <CrudListPage<CustomerWithCounts>

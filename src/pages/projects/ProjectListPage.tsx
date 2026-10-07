@@ -1,20 +1,19 @@
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderKanban } from 'lucide-react';
 import { projectService } from '@/services/project.service';
-import { salesService } from '@/services/sales.service';
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { PROJECT_STATUSES, statusFilterOptions } from '@/lib/status';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMySalesId } from '@/components/shared/useMySalesId';
 import { CrudListPage, CodeChip, ItemActionRow } from '@/components/shared/list';
 import type { ProjectWithCustomer } from '@/types';
 import { ProjectFormModal } from './ProjectFormModal';
 
 export default function ProjectListPage() {
   const { t } = useTranslation();
-  const { isAdmin, isManager, isSales, user } = useAuth();
+  const { isAdmin, isManager, isSales } = useAuth();
   // 3-role model (ADR-0001) — Permission Matrix (issue #5):
   //   create: admin/manager under any customer, sales under their own only
   //   edit:   admin/manager any, sales own-customer projects only
@@ -22,17 +21,7 @@ export default function ProjectListPage() {
   // The DB enforces the same cells via RLS (migration 0004); the UI hides
   // the buttons so the matrix is honored at both layers.
   const canCreateProjects = isAdmin || isManager || isSales;
-  const [mySalesId, setMySalesId] = useState<string | null>(null);
-
-  // Get current user's sales_id for permission checks (ownership derives
-  // through the Customer: project.customer.sales_id, ADR-0001)
-  useEffect(() => {
-    if (!isAdmin && user?.id) {
-      salesService.getByUserId(user.id).then((s) => {
-        if (s) setMySalesId(s.id);
-      });
-    }
-  }, [isAdmin, user]);
+  const mySalesId = useMySalesId();
 
   function isOwnCustomerProject(p: ProjectWithCustomer): boolean {
     return isSales && p.customer?.sales_id === mySalesId;
