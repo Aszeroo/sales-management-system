@@ -3,6 +3,7 @@ import { touchUpdatedAt } from '@/lib/audit';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Customer, CustomerWithCounts, SoftDeletable } from '@/types';
 import { coerceUserRole, isSalesRole } from '@/lib/roles';
+import { enrichCustomers } from '@/services/enrichment';
 import { salesService } from '@/services/sales.service';
 
 /**
@@ -30,31 +31,7 @@ export const customerService = {
 
     if (error) throw error;
 
-    const results: CustomerWithCounts[] = [];
-    for (const c of data || []) {
-      const { count: projectCount } = await client
-        .from('projects')
-        .select('*', { count: 'exact', head: true })
-        .eq('customer_id', c.id)
-        .is('deleted_at', null);
-
-      const { data: projects } = await client
-        .from('projects')
-        .select('budget')
-        .eq('customer_id', c.id)
-        .is('deleted_at', null);
-
-      const totalBudget = projects?.reduce((sum, p) => sum + (p.budget || 0), 0) || 0;
-
-      results.push({
-        ...c,
-        project_count: projectCount || 0,
-        total_budget: totalBudget,
-        sales: c.sales as unknown as CustomerWithCounts['sales'],
-      });
-    }
-
-    return results;
+    return enrichCustomers(client, data || []);
   },
 
   async getById(id: string, client: SupabaseClient = supabase): Promise<CustomerWithCounts | null> {
@@ -67,26 +44,8 @@ export const customerService = {
 
     if (error) return null;
 
-    const { count: projectCount } = await client
-      .from('projects')
-      .select('*', { count: 'exact', head: true })
-      .eq('customer_id', id)
-      .is('deleted_at', null);
-
-    const { data: projects } = await client
-      .from('projects')
-      .select('budget')
-      .eq('customer_id', id)
-      .is('deleted_at', null);
-
-    const totalBudget = projects?.reduce((sum, p) => sum + (p.budget || 0), 0) || 0;
-
-    return {
-      ...data,
-      project_count: projectCount || 0,
-      total_budget: totalBudget,
-      sales: data.sales as unknown as CustomerWithCounts['sales'],
-    };
+    const [enriched] = await enrichCustomers(client, [data]);
+    return enriched || null;
   },
 
   async getBySalesId(salesId: string, client: SupabaseClient = supabase): Promise<CustomerWithCounts[]> {
@@ -99,30 +58,7 @@ export const customerService = {
 
     if (error) throw error;
 
-    const results: CustomerWithCounts[] = [];
-    for (const c of data || []) {
-      const { count: projectCount } = await client
-        .from('projects')
-        .select('*', { count: 'exact', head: true })
-        .eq('customer_id', c.id)
-        .is('deleted_at', null);
-
-      const { data: projects } = await client
-        .from('projects')
-        .select('budget')
-        .eq('customer_id', c.id)
-        .is('deleted_at', null);
-
-      const totalBudget = projects?.reduce((sum, p) => sum + (p.budget || 0), 0) || 0;
-
-      results.push({
-        ...c,
-        project_count: projectCount || 0,
-        total_budget: totalBudget,
-      });
-    }
-
-    return results;
+    return enrichCustomers(client, data || []);
   },
 
   async create(customerData: CustomerCreateInput, client: SupabaseClient = supabase): Promise<Customer> {

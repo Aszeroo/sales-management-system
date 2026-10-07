@@ -8,6 +8,15 @@ import type { Project, ProjectWithCustomer, SoftDeletable } from '@/types';
  * singleton) so tests can drive the same seam with their own signed-in
  * client — real RLS, no mocks (see src/tests/*).
  */
+
+/** Normalizes the joined customer row (`customer:customers(...)`) to the ProjectWithCustomer shape. */
+function withCustomer(rows: (Project & { customer?: unknown })[]): ProjectWithCustomer[] {
+  return rows.map((p) => ({
+    ...p,
+    customer: p.customer as unknown as ProjectWithCustomer['customer'],
+  }));
+}
+
 export const projectService = {
   async getAll(client: SupabaseClient = supabase): Promise<ProjectWithCustomer[]> {
     const { data, error } = await client
@@ -18,10 +27,7 @@ export const projectService = {
 
     if (error) throw error;
 
-    return (data || []).map((p) => ({
-      ...p,
-      customer: p.customer as unknown as ProjectWithCustomer['customer'],
-    }));
+    return withCustomer(data || []);
   },
 
   async getById(id: string, client: SupabaseClient = supabase): Promise<ProjectWithCustomer | null> {
@@ -34,10 +40,7 @@ export const projectService = {
 
     if (error) return null;
 
-    return {
-      ...data,
-      customer: data.customer as unknown as ProjectWithCustomer['customer'],
-    };
+    return withCustomer([data])[0] || null;
   },
 
   async getByCustomerId(customerId: string, client: SupabaseClient = supabase): Promise<Project[]> {
@@ -113,9 +116,6 @@ export const projectService = {
 
     if (error) throw error;
 
-    return (data || []).map((p) => ({
-      ...p,
-      customer: p.customer as unknown as ProjectWithCustomer['customer'],
-    }));
+    return withCustomer(data || []);
   },
 };
