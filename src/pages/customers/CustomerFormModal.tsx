@@ -11,7 +11,8 @@ import { Select } from '@/components/ui/Select';
 import { customerService } from '@/services/customer.service';
 import { salesService } from '@/services/sales.service';
 import { useAuth } from '@/contexts/AuthContext';
-import Swal from 'sweetalert2';
+import { CUSTOMER_STATUSES, statusFormOptions } from '@/lib/status';
+import { submitForm } from '@/components/shared/formSubmit';
 import type { CustomerWithCounts, Sales } from '@/types';
 
 interface CustomerFormModalProps {
@@ -46,7 +47,7 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
     address: z.string().optional(),
     description: z.string().optional(),
     sales_id: z.string().min(1, t('validation.required')),
-    status: z.enum(['active', 'inactive']),
+    status: z.enum(CUSTOMER_STATUSES),
   });
 
   type CustomerFormData = z.infer<typeof customerSchema>;
@@ -95,34 +96,31 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
   }, [customer, isAdmin, reset, mySales]);
 
   const onSubmit = async (data: CustomerFormData) => {
-    setLoading(true);
-    try {
-      if (customer) {
-        await customerService.update(customer.id, data);
-      } else {
-        // Generate customer code
-        const allCustomers = await customerService.getAll();
-        const nextNum = allCustomers.length + 1;
-        const code = `C${String(nextNum).padStart(3, '0')}`;
+    await submitForm(
+      t,
+      async () => {
+        if (customer) {
+          await customerService.update(customer.id, data);
+        } else {
+          // Generate customer code
+          const allCustomers = await customerService.getAll();
+          const nextNum = allCustomers.length + 1;
+          const code = `C${String(nextNum).padStart(3, '0')}`;
 
-        await customerService.create({
-          customer_code: code,
-          ...data,
-          company_name: data.company_name || '',
-          contact_person: data.contact_person || '',
-          phone: data.phone || '',
-          email: data.email || '',
-          address: data.address || '',
-          description: data.description || '',
-        });
-      }
-      Swal.fire(t('common.success'), '', 'success');
-      onSuccess();
-    } catch {
-      Swal.fire(t('common.error'), '', 'error');
-    } finally {
-      setLoading(false);
-    }
+          await customerService.create({
+            customer_code: code,
+            ...data,
+            company_name: data.company_name || '',
+            contact_person: data.contact_person || '',
+            phone: data.phone || '',
+            email: data.email || '',
+            address: data.address || '',
+            description: data.description || '',
+          });
+        }
+      },
+      { setLoading, onSuccess },
+    );
   };
 
   // Read-only Sales Owner display: on create it is the signed-in
@@ -212,10 +210,7 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
         <Select
           label={t('common.status')}
           {...register('status')}
-          options={[
-            { value: 'active', label: t('common.active') },
-            { value: 'inactive', label: t('common.inactive') },
-          ]}
+          options={statusFormOptions(CUSTOMER_STATUSES, t)}
         />
 
         <div className="flex justify-end gap-3 pt-4">

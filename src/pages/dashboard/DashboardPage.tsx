@@ -6,6 +6,7 @@ import { Card, CardStat } from '@/components/ui/Card';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { PROJECT_STATUSES, STATUS_I18N_KEYS } from '@/lib/status';
 import {
   Users,
   BriefcaseBusiness,
@@ -191,12 +192,10 @@ function SalesDashboard({
     {} as Record<string, number>
   );
 
-  const pieData = [
-    { name: t('projectPage.planning'), value: statusCounts['planning'] || 0 },
-    { name: t('projectPage.inProgress'), value: statusCounts['in_progress'] || 0 },
-    { name: t('projectPage.completed'), value: statusCounts['completed'] || 0 },
-    { name: t('projectPage.cancelled'), value: statusCounts['cancelled'] || 0 },
-  ].filter((d) => d.value > 0);
+  const pieData = PROJECT_STATUSES.map((status) => ({
+    name: t(STATUS_I18N_KEYS[status]),
+    value: statusCounts[status] || 0,
+  })).filter((d) => d.value > 0);
 
   const totalBudget = myProjects.reduce((sum, p) => sum + (p.budget || 0), 0);
 

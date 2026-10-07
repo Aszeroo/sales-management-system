@@ -10,7 +10,8 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Select } from '@/components/ui/Select';
 import { projectService } from '@/services/project.service';
 import { customerService } from '@/services/customer.service';
-import Swal from 'sweetalert2';
+import { PROJECT_STATUSES, statusFormOptions } from '@/lib/status';
+import { submitForm } from '@/components/shared/formSubmit';
 import type { ProjectWithCustomer, Customer } from '@/types';
 
 interface ProjectFormModalProps {
@@ -32,10 +33,32 @@ export function ProjectFormModal({ isOpen, onClose, onSuccess, project }: Projec
     budget: z.coerce.number().min(0, t('validation.invalidBudget')),
     start_date: z.string().optional(),
     end_date: z.string().optional(),
-    status: z.enum(['planning', 'in_progress', 'completed', 'cancelled']),
+    status: z.enum(PROJECT_STATUSES),
   });
 
   type ProjectFormData = z.infer<typeof projectSchema>;
+
+  async function updateProject(id: string, data: ProjectFormData) {
+    await projectService.update(id, {
+      ...data,
+      start_date: data.start_date || null,
+      end_date: data.end_date || null,
+    });
+  }
+
+  async function createProject(data: ProjectFormData) {
+    const allProjects = await projectService.getAll();
+    const nextNum = allProjects.length + 1;
+    const code = `P${String(nextNum).padStart(3, '0')}`;
+
+    await projectService.create({
+      project_code: code,
+      ...data,
+      description: data.description || '',
+      start_date: data.start_date || null,
+      end_date: data.end_date || null,
+    });
+  }
 
   const {
     register,
@@ -81,34 +104,10 @@ export function ProjectFormModal({ isOpen, onClose, onSuccess, project }: Projec
   }, [project, reset]);
 
   const onSubmit = async (data: ProjectFormData) => {
-    setLoading(true);
-    try {
-      if (project) {
-        await projectService.update(project.id, {
-          ...data,
-          start_date: data.start_date || null,
-          end_date: data.end_date || null,
-        });
-      } else {
-        const allProjects = await projectService.getAll();
-        const nextNum = allProjects.length + 1;
-        const code = `P${String(nextNum).padStart(3, '0')}`;
-
-        await projectService.create({
-          project_code: code,
-          ...data,
-          description: data.description || '',
-          start_date: data.start_date || null,
-          end_date: data.end_date || null,
-        });
-      }
-      Swal.fire(t('common.success'), '', 'success');
-      onSuccess();
-    } catch {
-      Swal.fire(t('common.error'), '', 'error');
-    } finally {
-      setLoading(false);
-    }
+    await submitForm(t, () => (project ? updateProject(project.id, data) : createProject(data)), {
+      setLoading,
+      onSuccess,
+    });
   };
 
   return (
@@ -165,12 +164,7 @@ export function ProjectFormModal({ isOpen, onClose, onSuccess, project }: Projec
         <Select
           label={t('common.status')}
           {...register('status')}
-          options={[
-            { value: 'planning', label: t('projectPage.planning') },
-            { value: 'in_progress', label: t('projectPage.inProgress') },
-            { value: 'completed', label: t('projectPage.completed') },
-            { value: 'cancelled', label: t('projectPage.cancelled') },
-          ]}
+          options={statusFormOptions(PROJECT_STATUSES, t)}
         />
 
         <div className="flex justify-end gap-3 pt-4">

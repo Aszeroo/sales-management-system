@@ -1,73 +1,57 @@
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Eye, Users } from 'lucide-react';
 import { salesService } from '@/services/sales.service';
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { SearchInput } from '@/components/ui/SearchInput';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { formatCurrency } from '@/lib/utils';
+import { CardGrid, CodeChip, ListPageHeader } from '@/components/shared/list';
+import { useCrudList } from '@/components/shared/useCrudList';
 import type { SalesWithCounts } from '@/types';
 
 export default function SalesListPage() {
   const { t } = useTranslation();
-  const [sales, setSales] = useState<SalesWithCounts[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const list = useCrudList<SalesWithCounts>({
+    load: () => salesService.getAll(),
+    getId: (s) => s.id,
+    matchesSearch: (s, q) =>
+      s.full_name.toLowerCase().includes(q) ||
+      s.sales_code.toLowerCase().includes(q) ||
+      s.email.toLowerCase().includes(q),
+  });
 
-  useEffect(() => {
-    loadSales();
-  }, []);
-
-  async function loadSales() {
-    try {
-      const data = await salesService.getAll();
-      setSales(data);
-    } catch (err) {
-      console.error('Failed to load sales:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const filtered = sales.filter(
-    (s) =>
-      s.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      s.sales_code.toLowerCase().includes(search.toLowerCase()) ||
-      s.email.toLowerCase().includes(search.toLowerCase())
-  );
-
-  if (loading) return <LoadingSpinner />;
+  if (list.loading) return <LoadingSpinner />;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">{t('salesPage.title')}</h1>
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder={t('common.search')}
-          className="w-full sm:w-80"
-        />
-      </div>
+      <ListPageHeader
+        title={t('salesPage.title')}
+        headerExtra={
+          <SearchInput
+            value={list.search}
+            onChange={list.setSearch}
+            placeholder={t('common.search')}
+            className="w-full sm:w-80"
+          />
+        }
+      />
 
-      {filtered.length === 0 ? (
+      {list.filtered.length === 0 ? (
         <EmptyState
           icon={<Users size={48} />}
           title={t('common.noData')}
           description={t('common.noData')}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((s) => (
+        <CardGrid>
+          {list.filtered.map((s) => (
             <Card key={s.id} className="hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <span className="text-xs font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                    {s.sales_code}
-                  </span>
+                  <CodeChip code={s.sales_code} />
                 </div>
                 <StatusBadge status={s.status} />
               </div>
@@ -102,7 +86,7 @@ export default function SalesListPage() {
               </Link>
             </Card>
           ))}
-        </div>
+        </CardGrid>
       )}
     </div>
   );

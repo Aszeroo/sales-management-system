@@ -1,12 +1,22 @@
 import { supabase } from '@/lib/supabase';
+import { insertRow, updateRow } from '@/services/table';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Project, ProjectWithCustomer } from '@/types';
+import type { Project, ProjectWithCustomer, SoftDeletable } from '@/types';
 
 /**
  * Every method takes an optional supabase-js client (defaults to the app's
  * singleton) so tests can drive the same seam with their own signed-in
  * client — real RLS, no mocks (see src/tests/*).
  */
+
+/** Normalizes the joined customer row (`customer:customers(...)`) to the ProjectWithCustomer shape. */
+function withCustomer(rows: (Project & { customer?: unknown })[]): ProjectWithCustomer[] {
+  return rows.map((p) => ({
+    ...p,
+    customer: p.customer as unknown as ProjectWithCustomer['customer'],
+  }));
+}
+
 export const projectService = {
   async getAll(client: SupabaseClient = supabase): Promise<ProjectWithCustomer[]> {
     const { data, error } = await client
@@ -17,10 +27,7 @@ export const projectService = {
 
     if (error) throw error;
 
-    return (data || []).map((p) => ({
-      ...p,
-      customer: p.customer as unknown as ProjectWithCustomer['customer'],
-    }));
+    return withCustomer(data || []);
   },
 
   async getById(id: string, client: SupabaseClient = supabase): Promise<ProjectWithCustomer | null> {
@@ -33,10 +40,7 @@ export const projectService = {
 
     if (error) return null;
 
-    return {
-      ...data,
-      customer: data.customer as unknown as ProjectWithCustomer['customer'],
-    };
+    return withCustomer([data])[0] || null;
   },
 
   async getByCustomerId(customerId: string, client: SupabaseClient = supabase): Promise<Project[]> {
@@ -52,29 +56,14 @@ export const projectService = {
   },
 
   async create(
-    projectData: Omit<Project, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>,
+    projectData: Omit<Project, 'id' | keyof SoftDeletable>,
     client: SupabaseClient = supabase,
   ): Promise<Project> {
-    const { data, error } = await client
-      .from('projects')
-      .insert(projectData)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return insertRow<Project>(client, 'projects', projectData);
   },
 
   async update(id: string, updates: Partial<Project>, client: SupabaseClient = supabase): Promise<Project> {
-    const { data, error } = await client
-      .from('projects')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return updateRow<Project>(client, 'projects', id, updates);
   },
 
   async softDelete(id: string, client: SupabaseClient = supabase): Promise<void> {
@@ -112,9 +101,6 @@ export const projectService = {
 
     if (error) throw error;
 
-    return (data || []).map((p) => ({
-      ...p,
-      customer: p.customer as unknown as ProjectWithCustomer['customer'],
-    }));
+    return withCustomer(data || []);
   },
 };

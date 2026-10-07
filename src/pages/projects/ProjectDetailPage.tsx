@@ -1,36 +1,21 @@
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, DollarSign, User } from 'lucide-react';
+import { ArrowLeft, Calendar, DollarSign } from 'lucide-react';
 import { projectService } from '@/services/project.service';
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
-import type { ProjectWithCustomer } from '@/types';
+import { useDetailView } from '@/components/shared/useDetailView';
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [project, setProject] = useState<ProjectWithCustomer | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (id) loadData(id);
-  }, [id]);
-
-  async function loadData(projectId: string) {
-    try {
-      const data = await projectService.getById(projectId);
-      setProject(data);
-    } catch (err) {
-      console.error('Failed to load project detail:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { data: project, loading } = useDetailView(id, (projectId) =>
+    projectService.getById(projectId),
+  );
 
   if (loading) return <LoadingSpinner />;
   if (!project) return <EmptyState title={t('common.noData')} />;

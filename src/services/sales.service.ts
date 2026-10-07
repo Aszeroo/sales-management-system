@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Sales, SalesWithCounts } from '@/types';
+import type { Sales } from '@/types';
+import { enrichSales } from '@/services/enrichment';
 
 export const salesService = {
   /**
@@ -9,7 +10,7 @@ export const salesService = {
    * service) can drive it with their own signed-in supabase-js client —
    * real RLS, no mocks (see src/tests/*).
    */
-  async getAll(client: SupabaseClient = supabase): Promise<SalesWithCounts[]> {
+  async getAll(client: SupabaseClient = supabase) {
     const { data, error } = await client
       .from('sales')
       .select('*')
@@ -18,57 +19,12 @@ export const salesService = {
 
     if (error) throw error;
 
-    // Get counts and budgets for each sales
-    const results: SalesWithCounts[] = [];
-    for (const s of data || []) {
-      const { count: customerCount } = await client
-        .from('customers')
-        .select('*', { count: 'exact', head: true })
-        .eq('sales_id', s.id)
-        .is('deleted_at', null);
-
-      const { data: customers } = await client
-        .from('customers')
-        .select('id')
-        .eq('sales_id', s.id)
-        .is('deleted_at', null);
-
-      const customerIds = customers?.map((c) => c.id) || [];
-
-      let projectCount = 0;
-      let totalBudget = 0;
-
-      if (customerIds.length > 0) {
-        const { count: pc } = await client
-          .from('projects')
-          .select('*', { count: 'exact', head: true })
-          .in('customer_id', customerIds)
-          .is('deleted_at', null);
-
-        projectCount = pc || 0;
-
-        const { data: projects } = await client
-          .from('projects')
-          .select('budget')
-          .in('customer_id', customerIds)
-          .is('deleted_at', null);
-
-        totalBudget = projects?.reduce((sum, p) => sum + (p.budget || 0), 0) || 0;
-      }
-
-      results.push({
-        ...s,
-        customer_count: customerCount || 0,
-        project_count: projectCount,
-        total_budget: totalBudget,
-      });
-    }
-
-    return results;
+    // Per-owner counts and budgets come from the shared enrichment helper.
+    return enrichSales(client, data || []);
   },
 
-  async getById(id: string): Promise<SalesWithCounts | null> {
-    const { data, error } = await supabase
+  async getById(id: string, client: SupabaseClient = supabase) {
+    const { data, error } = await client
       .from('sales')
       .select('*')
       .eq('id', id)
@@ -77,51 +33,12 @@ export const salesService = {
 
     if (error) return null;
 
-    const { count: customerCount } = await supabase
-      .from('customers')
-      .select('*', { count: 'exact', head: true })
-      .eq('sales_id', id)
-      .is('deleted_at', null);
-
-    const { data: customers } = await supabase
-      .from('customers')
-      .select('id')
-      .eq('sales_id', id)
-      .is('deleted_at', null);
-
-    const customerIds = customers?.map((c) => c.id) || [];
-
-    let projectCount = 0;
-    let totalBudget = 0;
-
-    if (customerIds.length > 0) {
-      const { count: pc } = await supabase
-        .from('projects')
-        .select('*', { count: 'exact', head: true })
-        .in('customer_id', customerIds)
-        .is('deleted_at', null);
-
-      projectCount = pc || 0;
-
-      const { data: projects } = await supabase
-        .from('projects')
-        .select('budget')
-        .in('customer_id', customerIds)
-        .is('deleted_at', null);
-
-      totalBudget = projects?.reduce((sum, p) => sum + (p.budget || 0), 0) || 0;
-    }
-
-    return {
-      ...data,
-      customer_count: customerCount || 0,
-      project_count: projectCount,
-      total_budget: totalBudget,
-    };
+    const [enriched] = await enrichSales(client, [data]);
+    return enriched || null;
   },
 
-  async getByUserId(userId: string): Promise<Sales | null> {
-    const { data, error } = await supabase
+  async getByUserId(userId: string, client: SupabaseClient = supabase): Promise<Sales | null> {
+    const { data, error } = await client
       .from('sales')
       .select('*')
       .eq('user_id', userId)

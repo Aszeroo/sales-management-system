@@ -1,25 +1,31 @@
-export interface Profile {
-  id: string;
-  full_name: string;
-  avatar_url: string | null;
+import type { CustomerStatus, ProjectStatus } from '@/lib/status';
+
+/**
+ * Audit timestamps (issue #8) — the created/updated stamps every table
+ * carries. Display goes through formatDateTime/formatDate (lib/utils); the
+ * write-side stamp comes from touchUpdatedAt (lib/audit).
+ */
+export interface AuditTimestamps {
   created_at: string;
   updated_at: string;
 }
 
-export interface Sales {
+/** Audit timestamps plus the Soft Delete marker (CONTEXT.md). */
+export interface SoftDeletable extends AuditTimestamps {
+  deleted_at: string | null;
+}
+
+export interface Sales extends SoftDeletable {
   id: string;
   user_id: string;
   sales_code: string;
   full_name: string;
   username: string;
   email: string;
-  status: 'active' | 'inactive';
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
+  status: CustomerStatus;
 }
 
-export interface Customer {
+export interface Customer extends SoftDeletable {
   id: string;
   customer_code: string;
   customer_name: string;
@@ -30,13 +36,10 @@ export interface Customer {
   address: string;
   description: string;
   sales_id: string;
-  status: 'active' | 'inactive';
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
+  status: CustomerStatus;
 }
 
-export interface Project {
+export interface Project extends SoftDeletable {
   id: string;
   project_code: string;
   project_name: string;
@@ -45,15 +48,14 @@ export interface Project {
   budget: number;
   start_date: string | null;
   end_date: string | null;
-  status: 'planning' | 'in_progress' | 'completed' | 'cancelled';
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
+  status: ProjectStatus;
 }
 
 // Exactly three roles (ADR-0001). Role comes from user metadata; Admin is
-// never Owner-capable, Sales and Manager each own a sales row.
-export type UserRole = 'admin' | 'manager' | 'sales';
+// never Owner-capable, Sales and Manager each own a sales row. USER_ROLES is
+// the vocabulary every role list/select/schema reads — never restate it.
+export const USER_ROLES = ['admin', 'manager', 'sales'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
 
 export interface AuthUser {
   id: string;
@@ -97,30 +99,11 @@ export interface ManagedUser {
   created_at: string;
 }
 
-// Dashboard stats
-export interface AdminDashboardStats {
-  totalSales: number;
-  totalCustomers: number;
-  totalProjects: number;
-  totalBudget: number;
-  budgetBySales: { name: string; budget: number }[];
-  projectsByStatus: { name: string; value: number }[];
-  customersBySales: { name: string; count: number }[];
-}
-
-export interface SalesDashboardStats {
-  myCustomers: number;
-  myProjects: number;
-  myTotalBudget: number;
-  projectsByStatus: { name: string; value: number }[];
-  recentProjects: ProjectWithCustomer[];
-}
-
+// Dashboard data
 // Role-true dashboard data (issue #6). `scope` states whose reality the
 // numbers describe — 'own' covers only the current Sales user's customers and
 // projects, 'org' covers the whole system (Manager/Admin). Labels must match
 // the scope: org-wide numbers must never be captioned "my …" and vice versa.
-export type DashboardScope = 'own' | 'org';
 
 export interface OwnDashboardData {
   scope: 'own';

@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Users, KeyRound, UserCog, Ban, RotateCcw } from 'lucide-react';
+import { Users, KeyRound, UserCog, Ban, RotateCcw } from 'lucide-react';
 import { userService } from '@/services/user.service';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { SearchInput } from '@/components/ui/SearchInput';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Modal } from '@/components/ui/Modal';
 import { TextInput } from '@/components/ui/TextInput';
 import { Select } from '@/components/ui/Select';
@@ -15,7 +14,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Swal from 'sweetalert2';
-import type { ManagedUser, UserRole } from '@/types';
+import { isAdminRole } from '@/lib/roles';
+import { USER_ROLES } from '@/types';
+import type { ManagedUser } from '@/types';
+import { CardGrid, ListPageHeader, ListToolbar } from '@/components/shared/list';
+import { useCrudList } from '@/components/shared/useCrudList';
+import { submitForm } from '@/components/shared/formSubmit';
 
 /**
  * Unified users page for Admin (issue #7, ADR-0001): every User of every
@@ -23,9 +27,13 @@ import type { ManagedUser, UserRole } from '@/types';
  * SECURITY DEFINER RPCs — create with any role, reset password, change
  * role, real deactivate/reactivate. The old per-sales management page is
  * fully replaced by this page.
+ *
+ * The list logic (load/search/modal wiring) comes from the shared CRUD
+ * module; the account operations and their two extra modals stay here
+ * because they are unique to this page.
  */
 
-const ROLES: UserRole[] = ['admin', 'manager', 'sales'];
+const ROLES = USER_ROLES;
 
 /** Maps RPC error text to i18n; keeps the owned-count from the guard. */
 function describeRpcError(message: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -41,35 +49,21 @@ function describeRpcError(message: string, t: (key: string, opts?: Record<string
 
 export default function AdminUsersPage() {
   const { t } = useTranslation();
-  const [users, setUsers] = useState<ManagedUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [showForm, setShowForm] = useState(false);
   const [resetTarget, setResetTarget] = useState<ManagedUser | null>(null);
   const [roleTarget, setRoleTarget] = useState<ManagedUser | null>(null);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  async function loadUsers() {
-    try {
-      const data = await userService.getAll();
-      setUsers(data);
-    } catch (err) {
-      console.error('Failed to load users:', err);
+  const list = useCrudList<ManagedUser>({
+    load: () => userService.getAll(),
+    getId: (u) => u.user_id,
+    matchesSearch: (u, q) =>
+      u.full_name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      (u.sales_code || '').toLowerCase().includes(q),
+    renderForm: (_editing, close, onSaved) => <CreateUserModal onClose={close} onSuccess={onSaved} />,
+    onLoadError: (err) => {
       Swal.fire(t('common.error'), describeRpcError((err as Error).message, t), 'error');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const filtered = users.filter(
-    (u) =>
-      u.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      (u.sales_code || '').toLowerCase().includes(search.toLowerCase())
-  );
+    },
+  });
 
   async function handleDeactivate(u: ManagedUser) {
     // Advance warning BEFORE attempting (ADR-0001): a Sales Owner cannot
@@ -99,7 +93,7 @@ export default function AdminUsersPage() {
     try {
       await userService.setActive(u.user_id, false);
       Swal.fire(t('common.success'), t('adminUsers.deactivated'), 'success');
-      loadUsers();
+      void list.reload();
     } catch (err) {
       Swal.fire(t('common.error'), describeRpcError((err as Error).message, t), 'error');
     }
@@ -119,36 +113,24 @@ export default function AdminUsersPage() {
     try {
       await userService.setActive(u.user_id, true);
       Swal.fire(t('common.success'), t('adminUsers.reactivated'), 'success');
-      loadUsers();
+      void list.reload();
     } catch (err) {
       Swal.fire(t('common.error'), describeRpcError((err as Error).message, t), 'error');
     }
   }
 
-  if (loading) return <LoadingSpinner />;
+  if (list.loading) return <LoadingSpinner />;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">{t('adminUsers.title')}</h1>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus size={18} />
-          {t('adminUsers.addUser')}
-        </Button>
-      </div>
+      <ListPageHeader title={t('adminUsers.title')} createLabel={t('adminUsers.addUser')} onCreate={list.openCreate} />
+      <ListToolbar search={list.search} onSearchChange={list.setSearch} />
 
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder={t('common.search')}
-        className="w-full sm:w-80"
-      />
-
-      {filtered.length === 0 ? (
+      {list.filtered.length === 0 ? (
         <EmptyState icon={<Users size={48} />} title={t('common.noData')} />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((u) => (
+        <CardGrid>
+          {list.filtered.map((u) => (
             <Card key={u.user_id} className="hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-3">
                 <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
@@ -198,25 +180,12 @@ export default function AdminUsersPage() {
               </div>
             </Card>
           ))}
-        </div>
+        </CardGrid>
       )}
 
-      {showForm && (
-        <CreateUserModal
-          onClose={() => setShowForm(false)}
-          onSuccess={() => {
-            setShowForm(false);
-            loadUsers();
-          }}
-        />
-      )}
+      {list.formModal}
 
-      {resetTarget && (
-        <ResetPasswordModal
-          target={resetTarget}
-          onClose={() => setResetTarget(null)}
-        />
-      )}
+      {resetTarget && <ResetPasswordModal target={resetTarget} onClose={() => setResetTarget(null)} />}
 
       {roleTarget && (
         <ChangeRoleModal
@@ -224,7 +193,7 @@ export default function AdminUsersPage() {
           onClose={() => setRoleTarget(null)}
           onSuccess={() => {
             setRoleTarget(null);
-            loadUsers();
+            void list.reload();
           }}
         />
       )}
@@ -240,7 +209,7 @@ function CreateUserModal({ onClose, onSuccess }: { onClose: () => void; onSucces
     full_name: z.string().min(1, t('validation.required')),
     email: z.string().email(t('validation.invalidEmail')),
     password: z.string().min(6, t('validation.passwordMinLength')),
-    role: z.enum(['admin', 'manager', 'sales']),
+    role: z.enum(USER_ROLES),
   });
   type CreateFormData = z.infer<typeof createSchema>;
 
@@ -254,21 +223,22 @@ function CreateUserModal({ onClose, onSuccess }: { onClose: () => void; onSucces
   });
 
   const onSubmit = async (data: CreateFormData) => {
-    setLoading(true);
-    try {
-      await userService.create({
-        email: data.email,
-        password: data.password,
-        full_name: data.full_name,
-        role: data.role,
-      });
-      Swal.fire(t('common.success'), t('adminUsers.userCreated'), 'success');
-      onSuccess();
-    } catch (err) {
-      Swal.fire(t('common.error'), describeRpcError((err as Error).message, t), 'error');
-    } finally {
-      setLoading(false);
-    }
+    await submitForm(
+      t,
+      () =>
+        userService.create({
+          email: data.email,
+          password: data.password,
+          full_name: data.full_name,
+          role: data.role,
+        }),
+      {
+        setLoading,
+        onSuccess,
+        successMessage: t('adminUsers.userCreated'),
+        describeError: (message) => describeRpcError(message, t),
+      },
+    );
   };
 
   return (
@@ -326,16 +296,16 @@ function ResetPasswordModal({ target, onClose }: { target: ManagedUser; onClose:
   } = useForm<ResetFormData>({ resolver: zodResolver(resetSchema) });
 
   const onSubmit = async (data: ResetFormData) => {
-    setLoading(true);
-    try {
-      await userService.resetPassword(target.user_id, data.newPassword);
-      Swal.fire(t('common.success'), t('adminUsers.passwordResetDone'), 'success');
-      onClose();
-    } catch (err) {
-      Swal.fire(t('common.error'), describeRpcError((err as Error).message, t), 'error');
-    } finally {
-      setLoading(false);
-    }
+    await submitForm(
+      t,
+      () => userService.resetPassword(target.user_id, data.newPassword),
+      {
+        setLoading,
+        onSuccess: onClose,
+        successMessage: t('adminUsers.passwordResetDone'),
+        describeError: (message) => describeRpcError(message, t),
+      },
+    );
   };
 
   return (
@@ -376,7 +346,7 @@ function ChangeRoleModal({
   const [loading, setLoading] = useState(false);
 
   const roleSchema = z.object({
-    role: z.enum(['admin', 'manager', 'sales']),
+    role: z.enum(USER_ROLES),
   });
   type RoleFormData = z.infer<typeof roleSchema>;
 
@@ -400,7 +370,7 @@ function ChangeRoleModal({
       // Advance warning BEFORE attempting (ADR-0001): promoting a Sales
       // Owner to admin would leave their customers ownerless — the RPC
       // rejects with the same count if the operator proceeds anyway.
-      if (data.role === 'admin' && target.role !== 'admin') {
+      if (isAdminRole(data.role) && !isAdminRole(target.role)) {
         const owned = await userService.getPendingReassignmentCount(target.user_id);
         if (owned > 0) {
           setLoading(false);

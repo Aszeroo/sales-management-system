@@ -26,11 +26,3 @@ export function formatDateTime(dateStr: string | null): string {
     minute: '2-digit',
   });
 }
-
-export function generateCode(prefix: string, number: number): string {
-  return `${prefix}${String(number).padStart(3, '0')}`;
-}
-
-export function classNames(...classes: (string | boolean | undefined | null)[]): string {
-  return classes.filter(Boolean).join(' ');
-}

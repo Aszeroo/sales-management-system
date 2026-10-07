@@ -1,6 +1,9 @@
 import { supabase } from '@/lib/supabase';
+import { insertRow, updateRow } from '@/services/table';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Customer, CustomerWithCounts } from '@/types';
+import type { Customer, CustomerWithCounts, SoftDeletable } from '@/types';
+import { coerceUserRole, isSalesRole } from '@/lib/roles';
+import { enrichCustomers } from '@/services/enrichment';
 import { salesService } from '@/services/sales.service';
 
 /**
@@ -9,10 +12,7 @@ import { salesService } from '@/services/sales.service';
  * inserting sales/manager user's own sales row when omitted (issue #4,
  * ADR-0001), and the Admin-only ownership rule is enforced by RLS.
  */
-type CustomerCreateInput = Omit<
-  Customer,
-  'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'sales_id'
-> & {
+type CustomerCreateInput = Omit<Customer, 'id' | keyof SoftDeletable | 'sales_id'> & {
   sales_id?: string;
 };
 
@@ -31,31 +31,7 @@ export const customerService = {
 
     if (error) throw error;
 
-    const results: CustomerWithCounts[] = [];
-    for (const c of data || []) {
-      const { count: projectCount } = await client
-        .from('projects')
-        .select('*', { count: 'exact', head: true })
-        .eq('customer_id', c.id)
-        .is('deleted_at', null);
-
-      const { data: projects } = await client
-        .from('projects')
-        .select('budget')
-        .eq('customer_id', c.id)
-        .is('deleted_at', null);
-
-      const totalBudget = projects?.reduce((sum, p) => sum + (p.budget || 0), 0) || 0;
-
-      results.push({
-        ...c,
-        project_count: projectCount || 0,
-        total_budget: totalBudget,
-        sales: c.sales as unknown as CustomerWithCounts['sales'],
-      });
-    }
-
-    return results;
+    return enrichCustomers(client, data || []);
   },
 
   async getById(id: string, client: SupabaseClient = supabase): Promise<CustomerWithCounts | null> {
@@ -68,26 +44,8 @@ export const customerService = {
 
     if (error) return null;
 
-    const { count: projectCount } = await client
-      .from('projects')
-      .select('*', { count: 'exact', head: true })
-      .eq('customer_id', id)
-      .is('deleted_at', null);
-
-    const { data: projects } = await client
-      .from('projects')
-      .select('budget')
-      .eq('customer_id', id)
-      .is('deleted_at', null);
-
-    const totalBudget = projects?.reduce((sum, p) => sum + (p.budget || 0), 0) || 0;
-
-    return {
-      ...data,
-      project_count: projectCount || 0,
-      total_budget: totalBudget,
-      sales: data.sales as unknown as CustomerWithCounts['sales'],
-    };
+    const [enriched] = await enrichCustomers(client, [data]);
+    return enriched || null;
   },
 
   async getBySalesId(salesId: string, client: SupabaseClient = supabase): Promise<CustomerWithCounts[]> {
@@ -100,53 +58,15 @@ export const customerService = {
 
     if (error) throw error;
 
-    const results: CustomerWithCounts[] = [];
-    for (const c of data || []) {
-      const { count: projectCount } = await client
-        .from('projects')
-        .select('*', { count: 'exact', head: true })
-        .eq('customer_id', c.id)
-        .is('deleted_at', null);
-
-      const { data: projects } = await client
-        .from('projects')
-        .select('budget')
-        .eq('customer_id', c.id)
-        .is('deleted_at', null);
-
-      const totalBudget = projects?.reduce((sum, p) => sum + (p.budget || 0), 0) || 0;
-
-      results.push({
-        ...c,
-        project_count: projectCount || 0,
-        total_budget: totalBudget,
-      });
-    }
-
-    return results;
+    return enrichCustomers(client, data || []);
   },
 
   async create(customerData: CustomerCreateInput, client: SupabaseClient = supabase): Promise<Customer> {
-    const { data, error } = await client
-      .from('customers')
-      .insert(customerData)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return insertRow<Customer>(client, 'customers', customerData);
   },
 
   async update(id: string, updates: Partial<Customer>, client: SupabaseClient = supabase): Promise<Customer> {
-    const { data, error } = await client
-      .from('customers')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return updateRow<Customer>(client, 'customers', id, updates);
   },
 
   async softDelete(id: string, client: SupabaseClient = supabase): Promise<void> {
@@ -171,13 +91,11 @@ export const customerService = {
    */
   async getOptionsForProjectForm(client: SupabaseClient = supabase): Promise<Customer[]> {
     const { data: userData } = await client.auth.getUser();
-    const metadataRole: unknown = userData?.user?.user_metadata?.role;
     // Mirror the DB's get_user_role(): unknown/missing metadata acts as
     // 'sales', the most restrictive owner-capable role.
-    const role =
-      metadataRole === 'admin' || metadataRole === 'manager' ? metadataRole : 'sales';
+    const role = coerceUserRole(userData?.user?.user_metadata?.role);
 
-    if (role === 'sales') {
+    if (isSalesRole(role)) {
       const sales = await salesService.getCurrentUserSales(client);
       // A sales user without a sales row sees no options at all.
       return sales ? this.getActiveCustomers(client, sales.id) : [];
