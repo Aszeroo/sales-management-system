@@ -1,3 +1,5 @@
+import type { CustomerStatus, ProjectStatus } from '@/lib/status';
+
 export interface Profile {
   id: string;
   full_name: string;
@@ -13,7 +15,7 @@ export interface Sales {
   full_name: string;
   username: string;
   email: string;
-  status: 'active' | 'inactive';
+  status: CustomerStatus;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -30,7 +32,7 @@ export interface Customer {
   address: string;
   description: string;
   sales_id: string;
-  status: 'active' | 'inactive';
+  status: CustomerStatus;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -45,7 +47,7 @@ export interface Project {
   budget: number;
   start_date: string | null;
   end_date: string | null;
-  status: 'planning' | 'in_progress' | 'completed' | 'cancelled';
+  status: ProjectStatus;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

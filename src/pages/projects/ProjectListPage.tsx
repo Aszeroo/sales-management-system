@@ -11,6 +11,7 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { PROJECT_STATUSES, statusFilterOptions } from '@/lib/status';
 import { useAuth } from '@/contexts/AuthContext';
 import Swal from 'sweetalert2';
 import type { ProjectWithCustomer } from '@/types';
@@ -142,11 +143,9 @@ export default function ProjectListPage() {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="all">{t('common.all')} {t('common.status')}</option>
-          <option value="planning">{t('projectPage.planning')}</option>
-          <option value="in_progress">{t('projectPage.inProgress')}</option>
-          <option value="completed">{t('projectPage.completed')}</option>
-          <option value="cancelled">{t('projectPage.cancelled')}</option>
+          {statusFilterOptions(PROJECT_STATUSES, t).map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
         </select>
       </div>
 

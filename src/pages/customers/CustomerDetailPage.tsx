@@ -9,6 +9,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { STATUS_I18N_KEYS } from '@/lib/status';
 import type { CustomerWithCounts, Project } from '@/types';
 
 export default function CustomerDetailPage() {
@@ -124,7 +125,7 @@ export default function CustomerDetailPage() {
         />
         <CardStat
           label={t('common.status')}
-          value={customer.status === 'active' ? t('common.active') : t('common.inactive')}
+          value={t(STATUS_I18N_KEYS[customer.status])}
           icon={<FolderKanban size={24} />}
           color="purple"
         />

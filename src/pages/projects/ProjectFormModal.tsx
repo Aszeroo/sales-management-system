@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Select } from '@/components/ui/Select';
 import { projectService } from '@/services/project.service';
 import { customerService } from '@/services/customer.service';
+import { PROJECT_STATUSES, statusFormOptions } from '@/lib/status';
 import Swal from 'sweetalert2';
 import type { ProjectWithCustomer, Customer } from '@/types';
 
@@ -32,7 +33,7 @@ export function ProjectFormModal({ isOpen, onClose, onSuccess, project }: Projec
     budget: z.coerce.number().min(0, t('validation.invalidBudget')),
     start_date: z.string().optional(),
     end_date: z.string().optional(),
-    status: z.enum(['planning', 'in_progress', 'completed', 'cancelled']),
+    status: z.enum(PROJECT_STATUSES),
   });
 
   type ProjectFormData = z.infer<typeof projectSchema>;
@@ -165,12 +166,7 @@ export function ProjectFormModal({ isOpen, onClose, onSuccess, project }: Projec
         <Select
           label={t('common.status')}
           {...register('status')}
-          options={[
-            { value: 'planning', label: t('projectPage.planning') },
-            { value: 'in_progress', label: t('projectPage.inProgress') },
-            { value: 'completed', label: t('projectPage.completed') },
-            { value: 'cancelled', label: t('projectPage.cancelled') },
-          ]}
+          options={statusFormOptions(PROJECT_STATUSES, t)}
         />
 
         <div className="flex justify-end gap-3 pt-4">

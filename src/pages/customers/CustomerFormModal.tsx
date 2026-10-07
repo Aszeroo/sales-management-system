@@ -11,6 +11,7 @@ import { Select } from '@/components/ui/Select';
 import { customerService } from '@/services/customer.service';
 import { salesService } from '@/services/sales.service';
 import { useAuth } from '@/contexts/AuthContext';
+import { CUSTOMER_STATUSES, statusFormOptions } from '@/lib/status';
 import Swal from 'sweetalert2';
 import type { CustomerWithCounts, Sales } from '@/types';
 
@@ -46,7 +47,7 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
     address: z.string().optional(),
     description: z.string().optional(),
     sales_id: z.string().min(1, t('validation.required')),
-    status: z.enum(['active', 'inactive']),
+    status: z.enum(CUSTOMER_STATUSES),
   });
 
   type CustomerFormData = z.infer<typeof customerSchema>;
@@ -212,10 +213,7 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
         <Select
           label={t('common.status')}
           {...register('status')}
-          options={[
-            { value: 'active', label: t('common.active') },
-            { value: 'inactive', label: t('common.inactive') },
-          ]}
+          options={statusFormOptions(CUSTOMER_STATUSES, t)}
         />
 
         <div className="flex justify-end gap-3 pt-4">

@@ -10,6 +10,7 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatCurrency } from '@/lib/utils';
+import { CUSTOMER_STATUSES, statusFilterOptions } from '@/lib/status';
 import { useAuth } from '@/contexts/AuthContext';
 import Swal from 'sweetalert2';
 import type { CustomerWithCounts } from '@/types';
@@ -105,9 +106,9 @@ export default function AdminCustomerPage() {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="all">{t('common.all')} {t('common.status')}</option>
-          <option value="active">{t('common.active')}</option>
-          <option value="inactive">{t('common.inactive')}</option>
+          {statusFilterOptions(CUSTOMER_STATUSES, t).map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
         </select>
       </div>
 
