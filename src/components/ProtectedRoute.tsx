@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { FullPageLoader } from '@/components/ui/LoadingSpinner';
+import { isAdminRole } from '@/lib/roles';
 import type { UserRole } from '@/types';
 
 interface ProtectedRouteProps {
@@ -21,7 +22,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && user.role !== requiredRole && user.role !== 'admin') {
+  if (requiredRole && user.role !== requiredRole && !isAdminRole(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }
 

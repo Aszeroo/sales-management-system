@@ -15,7 +15,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Swal from 'sweetalert2';
-import type { ManagedUser, UserRole } from '@/types';
+import { isAdminRole } from '@/lib/roles';
+import { USER_ROLES } from '@/types';
+import type { ManagedUser } from '@/types';
 
 /**
  * Unified users page for Admin (issue #7, ADR-0001): every User of every
@@ -25,7 +27,7 @@ import type { ManagedUser, UserRole } from '@/types';
  * fully replaced by this page.
  */
 
-const ROLES: UserRole[] = ['admin', 'manager', 'sales'];
+const ROLES = USER_ROLES;
 
 /** Maps RPC error text to i18n; keeps the owned-count from the guard. */
 function describeRpcError(message: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -240,7 +242,7 @@ function CreateUserModal({ onClose, onSuccess }: { onClose: () => void; onSucces
     full_name: z.string().min(1, t('validation.required')),
     email: z.string().email(t('validation.invalidEmail')),
     password: z.string().min(6, t('validation.passwordMinLength')),
-    role: z.enum(['admin', 'manager', 'sales']),
+    role: z.enum(USER_ROLES),
   });
   type CreateFormData = z.infer<typeof createSchema>;
 
@@ -376,7 +378,7 @@ function ChangeRoleModal({
   const [loading, setLoading] = useState(false);
 
   const roleSchema = z.object({
-    role: z.enum(['admin', 'manager', 'sales']),
+    role: z.enum(USER_ROLES),
   });
   type RoleFormData = z.infer<typeof roleSchema>;
 
@@ -400,7 +402,7 @@ function ChangeRoleModal({
       // Advance warning BEFORE attempting (ADR-0001): promoting a Sales
       // Owner to admin would leave their customers ownerless — the RPC
       // rejects with the same count if the operator proceeds anyway.
-      if (data.role === 'admin' && target.role !== 'admin') {
+      if (isAdminRole(data.role) && !isAdminRole(target.role)) {
         const owned = await userService.getPendingReassignmentCount(target.user_id);
         if (owned > 0) {
           setLoading(false);

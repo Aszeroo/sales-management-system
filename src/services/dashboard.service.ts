@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { coerceUserRole, isSalesRole } from '@/lib/roles';
 import type { DashboardData, OwnDashboardData, OrgDashboardData } from '@/types';
 import { salesService } from '@/services/sales.service';
 import { customerService } from '@/services/customer.service';
@@ -28,11 +29,11 @@ export const dashboardService = {
    */
   async getDashboardData(client: SupabaseClient = supabase): Promise<DashboardData> {
     const { data: userData } = await client.auth.getUser();
-    const metadataRole: unknown = userData?.user?.user_metadata?.role;
-    const role =
-      metadataRole === 'admin' || metadataRole === 'manager' ? metadataRole : 'sales';
+    // Mirror the DB's get_user_role(): unknown/missing metadata acts as
+    // 'sales', the most restrictive owner-capable role.
+    const role = coerceUserRole(userData?.user?.user_metadata?.role);
 
-    if (role === 'sales') {
+    if (isSalesRole(role)) {
       return this.getOwnDashboardData(client);
     }
     return this.getOrgDashboardData(client);

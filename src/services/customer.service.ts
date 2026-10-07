@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Customer, CustomerWithCounts } from '@/types';
+import { coerceUserRole, isSalesRole } from '@/lib/roles';
 import { salesService } from '@/services/sales.service';
 
 /**
@@ -171,13 +172,11 @@ export const customerService = {
    */
   async getOptionsForProjectForm(client: SupabaseClient = supabase): Promise<Customer[]> {
     const { data: userData } = await client.auth.getUser();
-    const metadataRole: unknown = userData?.user?.user_metadata?.role;
     // Mirror the DB's get_user_role(): unknown/missing metadata acts as
     // 'sales', the most restrictive owner-capable role.
-    const role =
-      metadataRole === 'admin' || metadataRole === 'manager' ? metadataRole : 'sales';
+    const role = coerceUserRole(userData?.user?.user_metadata?.role);
 
-    if (role === 'sales') {
+    if (isSalesRole(role)) {
       const sales = await salesService.getCurrentUserSales(client);
       // A sales user without a sales row sees no options at all.
       return sales ? this.getActiveCustomers(client, sales.id) : [];

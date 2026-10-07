@@ -54,8 +54,10 @@ export interface Project {
 }
 
 // Exactly three roles (ADR-0001). Role comes from user metadata; Admin is
-// never Owner-capable, Sales and Manager each own a sales row.
-export type UserRole = 'admin' | 'manager' | 'sales';
+// never Owner-capable, Sales and Manager each own a sales row. USER_ROLES is
+// the vocabulary every role list/select/schema reads — never restate it.
+export const USER_ROLES = ['admin', 'manager', 'sales'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
 
 export interface AuthUser {
   id: string;
