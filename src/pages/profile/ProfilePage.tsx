@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { TextInput } from '@/components/ui/TextInput';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Modal } from '@/components/ui/Modal';
-import Swal from 'sweetalert2';
+import { submitForm } from '@/components/shared/formSubmit';
 import type { Sales } from '@/types';
 
 export default function ProfilePage() {
@@ -138,22 +138,24 @@ function ChangePasswordModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   });
 
   const onSubmit = async (data: PasswordFormData) => {
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: data.newPassword,
-      });
+    await submitForm(
+      t,
+      async () => {
+        const { error } = await supabase.auth.updateUser({
+          password: data.newPassword,
+        });
 
-      if (error) throw error;
-
-      Swal.fire(t('common.success'), t('profile.passwordChangedSuccess'), 'success');
-      reset();
-      onClose();
-    } catch {
-      Swal.fire(t('common.error'), '', 'error');
-    } finally {
-      setLoading(false);
-    }
+        if (error) throw error;
+      },
+      {
+        setLoading,
+        onSuccess: () => {
+          reset();
+          onClose();
+        },
+        successMessage: t('profile.passwordChangedSuccess'),
+      },
+    );
   };
 
   return (

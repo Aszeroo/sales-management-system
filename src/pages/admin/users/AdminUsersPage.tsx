@@ -19,6 +19,7 @@ import { USER_ROLES } from '@/types';
 import type { ManagedUser } from '@/types';
 import { CardGrid, ListPageHeader, ListToolbar } from '@/components/shared/list';
 import { useCrudList } from '@/components/shared/useCrudList';
+import { submitForm } from '@/components/shared/formSubmit';
 
 /**
  * Unified users page for Admin (issue #7, ADR-0001): every User of every
@@ -222,21 +223,22 @@ function CreateUserModal({ onClose, onSuccess }: { onClose: () => void; onSucces
   });
 
   const onSubmit = async (data: CreateFormData) => {
-    setLoading(true);
-    try {
-      await userService.create({
-        email: data.email,
-        password: data.password,
-        full_name: data.full_name,
-        role: data.role,
-      });
-      Swal.fire(t('common.success'), t('adminUsers.userCreated'), 'success');
-      onSuccess();
-    } catch (err) {
-      Swal.fire(t('common.error'), describeRpcError((err as Error).message, t), 'error');
-    } finally {
-      setLoading(false);
-    }
+    await submitForm(
+      t,
+      () =>
+        userService.create({
+          email: data.email,
+          password: data.password,
+          full_name: data.full_name,
+          role: data.role,
+        }),
+      {
+        setLoading,
+        onSuccess,
+        successMessage: t('adminUsers.userCreated'),
+        describeError: (message) => describeRpcError(message, t),
+      },
+    );
   };
 
   return (
@@ -294,16 +296,16 @@ function ResetPasswordModal({ target, onClose }: { target: ManagedUser; onClose:
   } = useForm<ResetFormData>({ resolver: zodResolver(resetSchema) });
 
   const onSubmit = async (data: ResetFormData) => {
-    setLoading(true);
-    try {
-      await userService.resetPassword(target.user_id, data.newPassword);
-      Swal.fire(t('common.success'), t('adminUsers.passwordResetDone'), 'success');
-      onClose();
-    } catch (err) {
-      Swal.fire(t('common.error'), describeRpcError((err as Error).message, t), 'error');
-    } finally {
-      setLoading(false);
-    }
+    await submitForm(
+      t,
+      () => userService.resetPassword(target.user_id, data.newPassword),
+      {
+        setLoading,
+        onSuccess: onClose,
+        successMessage: t('adminUsers.passwordResetDone'),
+        describeError: (message) => describeRpcError(message, t),
+      },
+    );
   };
 
   return (

@@ -11,7 +11,7 @@ import { Select } from '@/components/ui/Select';
 import { projectService } from '@/services/project.service';
 import { customerService } from '@/services/customer.service';
 import { PROJECT_STATUSES, statusFormOptions } from '@/lib/status';
-import Swal from 'sweetalert2';
+import { submitForm } from '@/components/shared/formSubmit';
 import type { ProjectWithCustomer, Customer } from '@/types';
 
 interface ProjectFormModalProps {
@@ -82,34 +82,31 @@ export function ProjectFormModal({ isOpen, onClose, onSuccess, project }: Projec
   }, [project, reset]);
 
   const onSubmit = async (data: ProjectFormData) => {
-    setLoading(true);
-    try {
-      if (project) {
-        await projectService.update(project.id, {
-          ...data,
-          start_date: data.start_date || null,
-          end_date: data.end_date || null,
-        });
-      } else {
-        const allProjects = await projectService.getAll();
-        const nextNum = allProjects.length + 1;
-        const code = `P${String(nextNum).padStart(3, '0')}`;
+    await submitForm(
+      t,
+      async () => {
+        if (project) {
+          await projectService.update(project.id, {
+            ...data,
+            start_date: data.start_date || null,
+            end_date: data.end_date || null,
+          });
+        } else {
+          const allProjects = await projectService.getAll();
+          const nextNum = allProjects.length + 1;
+          const code = `P${String(nextNum).padStart(3, '0')}`;
 
-        await projectService.create({
-          project_code: code,
-          ...data,
-          description: data.description || '',
-          start_date: data.start_date || null,
-          end_date: data.end_date || null,
-        });
-      }
-      Swal.fire(t('common.success'), '', 'success');
-      onSuccess();
-    } catch {
-      Swal.fire(t('common.error'), '', 'error');
-    } finally {
-      setLoading(false);
-    }
+          await projectService.create({
+            project_code: code,
+            ...data,
+            description: data.description || '',
+            start_date: data.start_date || null,
+            end_date: data.end_date || null,
+          });
+        }
+      },
+      { setLoading, onSuccess },
+    );
   };
 
   return (
