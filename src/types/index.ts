@@ -1,14 +1,27 @@
 import type { CustomerStatus, ProjectStatus } from '@/lib/status';
 
-export interface Profile {
-  id: string;
-  full_name: string;
-  avatar_url: string | null;
+/**
+ * Audit timestamps (issue #8) — the created/updated stamps every table
+ * carries. Display goes through formatDateTime/formatDate (lib/utils); the
+ * write-side stamp comes from touchUpdatedAt (lib/audit).
+ */
+export interface AuditTimestamps {
   created_at: string;
   updated_at: string;
 }
 
-export interface Sales {
+/** Audit timestamps plus the Soft Delete marker (CONTEXT.md). */
+export interface SoftDeletable extends AuditTimestamps {
+  deleted_at: string | null;
+}
+
+export interface Profile extends AuditTimestamps {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+}
+
+export interface Sales extends SoftDeletable {
   id: string;
   user_id: string;
   sales_code: string;
@@ -16,12 +29,9 @@ export interface Sales {
   username: string;
   email: string;
   status: CustomerStatus;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
 }
 
-export interface Customer {
+export interface Customer extends SoftDeletable {
   id: string;
   customer_code: string;
   customer_name: string;
@@ -33,12 +43,9 @@ export interface Customer {
   description: string;
   sales_id: string;
   status: CustomerStatus;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
 }
 
-export interface Project {
+export interface Project extends SoftDeletable {
   id: string;
   project_code: string;
   project_name: string;
@@ -48,9 +55,6 @@ export interface Project {
   start_date: string | null;
   end_date: string | null;
   status: ProjectStatus;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
 }
 
 // Exactly three roles (ADR-0001). Role comes from user metadata; Admin is

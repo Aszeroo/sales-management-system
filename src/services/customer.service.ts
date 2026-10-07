@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
+import { touchUpdatedAt } from '@/lib/audit';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Customer, CustomerWithCounts } from '@/types';
+import type { Customer, CustomerWithCounts, SoftDeletable } from '@/types';
 import { coerceUserRole, isSalesRole } from '@/lib/roles';
 import { salesService } from '@/services/sales.service';
 
@@ -10,10 +11,7 @@ import { salesService } from '@/services/sales.service';
  * inserting sales/manager user's own sales row when omitted (issue #4,
  * ADR-0001), and the Admin-only ownership rule is enforced by RLS.
  */
-type CustomerCreateInput = Omit<
-  Customer,
-  'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'sales_id'
-> & {
+type CustomerCreateInput = Omit<Customer, 'id' | keyof SoftDeletable | 'sales_id'> & {
   sales_id?: string;
 };
 
@@ -141,7 +139,7 @@ export const customerService = {
   async update(id: string, updates: Partial<Customer>, client: SupabaseClient = supabase): Promise<Customer> {
     const { data, error } = await client
       .from('customers')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update({ ...updates, ...touchUpdatedAt() })
       .eq('id', id)
       .select()
       .single();

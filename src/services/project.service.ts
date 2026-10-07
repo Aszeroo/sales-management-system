@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
+import { touchUpdatedAt } from '@/lib/audit';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Project, ProjectWithCustomer } from '@/types';
+import type { Project, ProjectWithCustomer, SoftDeletable } from '@/types';
 
 /**
  * Every method takes an optional supabase-js client (defaults to the app's
@@ -52,7 +53,7 @@ export const projectService = {
   },
 
   async create(
-    projectData: Omit<Project, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>,
+    projectData: Omit<Project, 'id' | keyof SoftDeletable>,
     client: SupabaseClient = supabase,
   ): Promise<Project> {
     const { data, error } = await client
@@ -68,7 +69,7 @@ export const projectService = {
   async update(id: string, updates: Partial<Project>, client: SupabaseClient = supabase): Promise<Project> {
     const { data, error } = await client
       .from('projects')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update({ ...updates, ...touchUpdatedAt() })
       .eq('id', id)
       .select()
       .single();
