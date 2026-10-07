@@ -41,7 +41,7 @@ export function Sidebar({ collapsed, onToggle, onCloseMobile }: SidebarProps) {
   ];
 
   const adminItems = [
-    { path: '/admin/sales', label: t('sidebar.salesManagement'), icon: UserCog },
+    { path: '/admin/users', label: t('sidebar.usersManagement'), icon: UserCog },
     { path: '/admin/customers', label: t('sidebar.customerManagement'), icon: BriefcaseBusiness },
     { path: '/admin/projects', label: t('sidebar.projectManagement'), icon: FolderKanban },
   ];

@@ -82,6 +82,21 @@ export interface ProjectWithCustomer extends Project {
   customer?: Customer;
 }
 
+// Unified user-management row (issue #7). Shaped by the admin_list_users
+// RPC: every User of every role in one list — admins included, who have no
+// sales row (ADR-0001). `is_active` mirrors the real ban state
+// (auth.users.banned_until), not just a display flag.
+export interface ManagedUser {
+  user_id: string;
+  email: string;
+  full_name: string;
+  role: UserRole;
+  is_active: boolean;
+  sales_id: string | null;
+  sales_code: string | null;
+  created_at: string;
+}
+
 // Dashboard stats
 export interface AdminDashboardStats {
   totalSales: number;

@@ -120,38 +120,6 @@ export const salesService = {
     };
   },
 
-  async create(salesData: Omit<Sales, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>): Promise<Sales> {
-    const { data, error } = await supabase
-      .from('sales')
-      .insert(salesData)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  async update(id: string, updates: Partial<Sales>): Promise<Sales> {
-    const { data, error } = await supabase
-      .from('sales')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  async softDelete(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('sales')
-      .update({ deleted_at: new Date().toISOString(), status: 'inactive' })
-      .eq('id', id);
-
-    if (error) throw error;
-  },
-
   async getByUserId(userId: string): Promise<Sales | null> {
     const { data, error } = await supabase
       .from('sales')
