@@ -52,7 +52,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
               <div className="text-sm font-medium text-gray-700">
                 {user?.user_metadata?.full_name || user?.email}
               </div>
-              <div className="text-xs text-gray-500 capitalize">{user?.role}</div>
+              <div className="text-xs text-gray-500">{user ? t(`role.${user.role}`) : ''}</div>
             </div>
             <ChevronDown size={16} className="hidden md:block text-gray-400" />
           </button>

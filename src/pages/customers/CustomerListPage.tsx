@@ -19,7 +19,10 @@ import { CustomerFormModal } from './CustomerFormModal';
 
 export default function CustomerListPage() {
   const { t } = useTranslation();
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, isSales, user } = useAuth();
+  // 3-role model (ADR-0001): write rights stay Sales-only this ticket;
+  // Manager is a read-only viewer here until #4/#5 open them up.
+  const canManageCustomers = isAdmin || isSales;
   const [customers, setCustomers] = useState<CustomerWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -102,10 +105,12 @@ export default function CustomerListPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('customerPage.title')}</h1>
-        <Button onClick={handleCreate}>
-          <Plus size={18} />
-          {t('customerPage.addCustomer')}
-        </Button>
+        {canManageCustomers && (
+          <Button onClick={handleCreate}>
+            <Plus size={18} />
+            {t('customerPage.addCustomer')}
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -174,7 +179,7 @@ export default function CustomerListPage() {
                   <Eye size={14} />
                   {t('common.view')}
                 </Link>
-                {(isAdmin || c.sales_id === mySalesId) && (
+                {canManageCustomers && (isAdmin || c.sales_id === mySalesId) && (
                   <>
                     <button
                       onClick={() => handleEdit(c)}

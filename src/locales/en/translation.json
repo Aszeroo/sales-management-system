@@ -68,6 +68,11 @@
     "project": "Project",
     "salesPerson": "Sales Person"
   },
+  "role": {
+    "admin": "Admin",
+    "manager": "Manager",
+    "sales": "Sales"
+  },
   "sidebar": {
     "dashboard": "Dashboard",
     "sales": "Sales",
