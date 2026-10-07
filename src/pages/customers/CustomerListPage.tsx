@@ -19,10 +19,11 @@ import { CustomerFormModal } from './CustomerFormModal';
 
 export default function CustomerListPage() {
   const { t } = useTranslation();
-  const { isAdmin, isSales, user } = useAuth();
-  // 3-role model (ADR-0001): write rights stay Sales-only this ticket;
-  // Manager is a read-only viewer here until #4/#5 open them up.
-  const canManageCustomers = isAdmin || isSales;
+  const { isAdmin, isManager, isSales, user } = useAuth();
+  // Permission Matrix (issue #4): every role can create/edit customers here —
+  // Sales Owner changes are Admin-only (read-only field on the form) and
+  // deletion is Admin/Sales-only, so the buttons below are gated separately.
+  const canManageCustomers = isAdmin || isManager || isSales;
   const [customers, setCustomers] = useState<CustomerWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -179,21 +180,22 @@ export default function CustomerListPage() {
                   <Eye size={14} />
                   {t('common.view')}
                 </Link>
-                {canManageCustomers && (isAdmin || c.sales_id === mySalesId) && (
-                  <>
-                    <button
-                      onClick={() => handleEdit(c)}
-                      className="flex items-center justify-center px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(c)}
-                      className="flex items-center justify-center px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </>
+                {canManageCustomers && (isAdmin || isManager || c.sales_id === mySalesId) && (
+                  <button
+                    onClick={() => handleEdit(c)}
+                    className="flex items-center justify-center px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
+                {/* Delete: Admin any row, Sales own rows only, never Manager */}
+                {(isAdmin || (isSales && c.sales_id === mySalesId)) && (
+                  <button
+                    onClick={() => handleDelete(c)}
+                    className="flex items-center justify-center px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 )}
               </div>
             </Card>

@@ -149,6 +149,7 @@
     "address": "ที่อยู่",
     "description": "รายละเอียด",
     "salesOwner": "เจ้าของฝ่ายขาย",
+    "ownerReadOnlyHint": "เฉพาะ Admin เท่านั้นที่กำหนดหรือย้ายเจ้าของฝ่ายขายได้",
     "selectSales": "เลือกฝ่ายขาย",
     "createCustomer": "สร้างลูกค้า",
     "updateCustomer": "อัปเดตลูกค้า"
