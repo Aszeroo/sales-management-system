@@ -15,12 +15,6 @@ export interface SoftDeletable extends AuditTimestamps {
   deleted_at: string | null;
 }
 
-export interface Profile extends AuditTimestamps {
-  id: string;
-  full_name: string;
-  avatar_url: string | null;
-}
-
 export interface Sales extends SoftDeletable {
   id: string;
   user_id: string;
@@ -105,25 +99,7 @@ export interface ManagedUser {
   created_at: string;
 }
 
-// Dashboard stats
-export interface AdminDashboardStats {
-  totalSales: number;
-  totalCustomers: number;
-  totalProjects: number;
-  totalBudget: number;
-  budgetBySales: { name: string; budget: number }[];
-  projectsByStatus: { name: string; value: number }[];
-  customersBySales: { name: string; count: number }[];
-}
-
-export interface SalesDashboardStats {
-  myCustomers: number;
-  myProjects: number;
-  myTotalBudget: number;
-  projectsByStatus: { name: string; value: number }[];
-  recentProjects: ProjectWithCustomer[];
-}
-
+// Dashboard data
 // Role-true dashboard data (issue #6). `scope` states whose reality the
 // numbers describe — 'own' covers only the current Sales user's customers and
 // projects, 'org' covers the whole system (Manager/Admin). Labels must match
