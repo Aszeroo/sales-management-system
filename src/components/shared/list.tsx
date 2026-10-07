@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SearchInput } from '@/components/ui/SearchInput';
@@ -104,6 +103,49 @@ export function CardGrid({ children }: { children: ReactNode }) {
  * smaller labeled variant; pass no handler to hide that button (the page's
  * permission gates decide).
  */
+/** One action row's sizing/spacing variant: the admin pages' compact labeled row vs the card row. */
+const ACTION_ROW_VARIANTS = {
+  compact: {
+    row: 'flex gap-1 flex-wrap',
+    iconSize: 12,
+    showLabel: true,
+    view: 'flex items-center justify-center gap-1 px-2 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-xs font-medium transition-colors',
+    edit: 'flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-medium transition-colors',
+    remove: 'flex items-center justify-center gap-1 px-2 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-medium transition-colors',
+  },
+  regular: {
+    row: 'flex gap-2',
+    iconSize: 14,
+    showLabel: false,
+    view: 'flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm font-medium transition-colors',
+    edit: 'flex items-center justify-center px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-medium transition-colors',
+    remove: 'flex items-center justify-center px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-colors',
+  },
+} as const;
+
+function ActionButton({
+  onClick,
+  className,
+  icon: Icon,
+  label,
+  showLabel,
+  iconSize,
+}: {
+  onClick: () => void;
+  className: string;
+  icon: typeof Pencil;
+  label: string;
+  showLabel: boolean;
+  iconSize: number;
+}) {
+  return (
+    <button onClick={onClick} className={className}>
+      <Icon size={iconSize} />
+      {showLabel && label}
+    </button>
+  );
+}
+
 export function ItemActionRow({
   viewHref,
   onEdit,
@@ -116,38 +158,38 @@ export function ItemActionRow({
   compact?: boolean;
 }) {
   const { t } = useTranslation();
-
-  const viewClass = compact
-    ? 'flex items-center justify-center gap-1 px-2 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-xs font-medium transition-colors'
-    : 'flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm font-medium transition-colors';
-  const editClass = compact
-    ? 'flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-medium transition-colors'
-    : 'flex items-center justify-center px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-medium transition-colors';
-  const deleteClass = compact
-    ? 'flex items-center justify-center gap-1 px-2 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-medium transition-colors'
-    : 'flex items-center justify-center px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-colors';
+  const variant = ACTION_ROW_VARIANTS[compact ? 'compact' : 'regular'];
 
   return (
-    <div className={compact ? 'flex gap-1 flex-wrap' : 'flex gap-2'}>
-      <Link to={viewHref} className={viewClass}>
-        <Eye size={compact ? 12 : 14} />
+    <div className={variant.row}>
+      <Link to={viewHref} className={variant.view}>
+        <Eye size={variant.iconSize} />
         {t('common.view')}
       </Link>
       {onEdit && (
-        <button onClick={onEdit} className={editClass}>
-          <Pencil size={compact ? 12 : 14} />
-          {compact && t('common.edit')}
-        </button>
+        <ActionButton
+          onClick={onEdit}
+          className={variant.edit}
+          icon={Pencil}
+          label={t('common.edit')}
+          showLabel={variant.showLabel}
+          iconSize={variant.iconSize}
+        />
       )}
       {onDelete && (
-        <button onClick={onDelete} className={deleteClass}>
-          <Trash2 size={compact ? 12 : 14} />
-          {compact && t('common.delete')}
-        </button>
+        <ActionButton
+          onClick={onDelete}
+          className={variant.remove}
+          icon={Trash2}
+          label={t('common.delete')}
+          showLabel={variant.showLabel}
+          iconSize={variant.iconSize}
+        />
       )}
     </div>
   );
 }
+
 
 /** Wiring handed to a page's card renderer by CrudListPage. */
 export interface CrudItemActions {

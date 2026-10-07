@@ -38,6 +38,28 @@ export function ProjectFormModal({ isOpen, onClose, onSuccess, project }: Projec
 
   type ProjectFormData = z.infer<typeof projectSchema>;
 
+  async function updateProject(id: string, data: ProjectFormData) {
+    await projectService.update(id, {
+      ...data,
+      start_date: data.start_date || null,
+      end_date: data.end_date || null,
+    });
+  }
+
+  async function createProject(data: ProjectFormData) {
+    const allProjects = await projectService.getAll();
+    const nextNum = allProjects.length + 1;
+    const code = `P${String(nextNum).padStart(3, '0')}`;
+
+    await projectService.create({
+      project_code: code,
+      ...data,
+      description: data.description || '',
+      start_date: data.start_date || null,
+      end_date: data.end_date || null,
+    });
+  }
+
   const {
     register,
     handleSubmit,
@@ -82,31 +104,10 @@ export function ProjectFormModal({ isOpen, onClose, onSuccess, project }: Projec
   }, [project, reset]);
 
   const onSubmit = async (data: ProjectFormData) => {
-    await submitForm(
-      t,
-      async () => {
-        if (project) {
-          await projectService.update(project.id, {
-            ...data,
-            start_date: data.start_date || null,
-            end_date: data.end_date || null,
-          });
-        } else {
-          const allProjects = await projectService.getAll();
-          const nextNum = allProjects.length + 1;
-          const code = `P${String(nextNum).padStart(3, '0')}`;
-
-          await projectService.create({
-            project_code: code,
-            ...data,
-            description: data.description || '',
-            start_date: data.start_date || null,
-            end_date: data.end_date || null,
-          });
-        }
-      },
-      { setLoading, onSuccess },
-    );
+    await submitForm(t, () => (project ? updateProject(project.id, data) : createProject(data)), {
+      setLoading,
+      onSuccess,
+    });
   };
 
   return (

@@ -14,13 +14,24 @@ export interface SubmitFormOptions {
 }
 
 /**
+ * The error toast body: entity forms show an empty body; the users page
+ * maps admin-RPC error text to i18n.
+ */
+function describeError(
+  options: SubmitFormOptions,
+  message: string,
+): string {
+  return options.describeError ? options.describeError(message) : '';
+}
+
+/**
  * The shared save flow of every form modal (issue #8): loading state,
  * success toast, error toast, and the onSuccess handoff — written once
  * here instead of once per modal.
  */
 export async function submitForm(
   t: (key: string, opts?: Record<string, unknown>) => string,
-  action: () => Promise<void>,
+  action: () => Promise<unknown>,
   options: SubmitFormOptions,
 ): Promise<void> {
   options.setLoading(true);
@@ -30,7 +41,7 @@ export async function submitForm(
     options.onSuccess();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    Swal.fire(t('common.error'), options.describeError ? options.describeError(message) : '', 'error');
+    Swal.fire(t('common.error'), describeError(options, message), 'error');
   } finally {
     options.setLoading(false);
   }
