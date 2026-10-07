@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Users, FolderKanban, DollarSign } from 'lucide-react';
@@ -9,36 +8,21 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatCurrency } from '@/lib/utils';
-import type { SalesWithCounts, CustomerWithCounts } from '@/types';
-import { useAuth } from '@/contexts/AuthContext';
+import { useDetailView } from '@/components/shared/useDetailView';
 
 export default function SalesDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
-  const [salesData, setSalesData] = useState<SalesWithCounts | null>(null);
-  const [customers, setCustomers] = useState<CustomerWithCounts[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (id) loadData(id);
-  }, [id]);
-
-  async function loadData(salesId: string) {
-    try {
-      const [s, custs] = await Promise.all([
-        salesService.getById(salesId),
-        customerService.getBySalesId(salesId),
-      ]);
-      setSalesData(s);
-      setCustomers(custs);
-    } catch (err) {
-      console.error('Failed to load sales detail:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { data, loading } = useDetailView(id, async (salesId) => {
+    const [salesData, customers] = await Promise.all([
+      salesService.getById(salesId),
+      customerService.getBySalesId(salesId),
+    ]);
+    return { salesData, customers };
+  });
+  const salesData = data?.salesData ?? null;
+  const customers = data?.customers ?? [];
 
   if (loading) return <LoadingSpinner />;
   if (!salesData) return <EmptyState title={t('common.noData')} />;

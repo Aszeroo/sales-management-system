@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FolderKanban, DollarSign, Mail, Phone, MapPin } from 'lucide-react';
@@ -10,34 +9,21 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { STATUS_I18N_KEYS } from '@/lib/status';
-import type { CustomerWithCounts, Project } from '@/types';
+import { useDetailView } from '@/components/shared/useDetailView';
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [customer, setCustomer] = useState<CustomerWithCounts | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (id) loadData(id);
-  }, [id]);
-
-  async function loadData(customerId: string) {
-    try {
-      const [c, projs] = await Promise.all([
-        customerService.getById(customerId),
-        projectService.getByCustomerId(customerId),
-      ]);
-      setCustomer(c);
-      setProjects(projs);
-    } catch (err) {
-      console.error('Failed to load customer detail:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { data, loading } = useDetailView(id, async (customerId) => {
+    const [customer, projects] = await Promise.all([
+      customerService.getById(customerId),
+      projectService.getByCustomerId(customerId),
+    ]);
+    return { customer, projects };
+  });
+  const customer = data?.customer ?? null;
+  const projects = data?.projects ?? [];
 
   if (loading) return <LoadingSpinner />;
   if (!customer) return <EmptyState title={t('common.noData')} />;
