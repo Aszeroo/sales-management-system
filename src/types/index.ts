@@ -120,7 +120,6 @@ export interface SalesDashboardStats {
 // numbers describe — 'own' covers only the current Sales user's customers and
 // projects, 'org' covers the whole system (Manager/Admin). Labels must match
 // the scope: org-wide numbers must never be captioned "my …" and vice versa.
-export type DashboardScope = 'own' | 'org';
 
 export interface OwnDashboardData {
   scope: 'own';
