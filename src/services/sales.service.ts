@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Sales, SalesWithCounts } from '@/types';
 
 export const salesService = {
@@ -152,6 +153,30 @@ export const salesService = {
       .eq('user_id', userId)
       .is('deleted_at', null)
       .single();
+
+    if (error) return null;
+    return data;
+  },
+
+  /**
+   * "The current user's sales row" — the ownership anchor of the 3-role
+   * model (ADR-0001): Owner-capable users (sales, manager) have exactly one
+   * active sales row created for them at signup; admin has none.
+   *
+   * Reads go through RLS, so this mirrors the DB helper `current_sales_id()`.
+   * The client is injectable so tests can drive this seam with their own
+   * signed-in supabase-js client (no mocks — RLS must be exercised for real).
+   */
+  async getCurrentUserSales(client: SupabaseClient = supabase): Promise<Sales | null> {
+    const { data: userData } = await client.auth.getUser();
+    if (!userData?.user) return null;
+
+    const { data, error } = await client
+      .from('sales')
+      .select('*')
+      .eq('user_id', userData.user.id)
+      .is('deleted_at', null)
+      .maybeSingle();
 
     if (error) return null;
     return data;

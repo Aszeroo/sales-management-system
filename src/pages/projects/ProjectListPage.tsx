@@ -17,7 +17,10 @@ import { ProjectFormModal } from './ProjectFormModal';
 
 export default function ProjectListPage() {
   const { t } = useTranslation();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isSales } = useAuth();
+  // 3-role model (ADR-0001): write rights stay Sales-only this ticket;
+  // Manager is a read-only viewer here until #4/#5 open them up.
+  const canManageProjects = isAdmin || isSales;
   const [projects, setProjects] = useState<ProjectWithCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -93,10 +96,12 @@ export default function ProjectListPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('projectPage.title')}</h1>
-        <Button onClick={handleCreate}>
-          <Plus size={18} />
-          {t('projectPage.addProject')}
-        </Button>
+        {canManageProjects && (
+          <Button onClick={handleCreate}>
+            <Plus size={18} />
+            {t('projectPage.addProject')}
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -161,18 +166,22 @@ export default function ProjectListPage() {
                   <Eye size={14} />
                   {t('common.view')}
                 </Link>
-                <button
-                  onClick={() => handleEdit(p)}
-                  className="flex items-center justify-center px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-medium transition-colors"
-                >
-                  <Pencil size={14} />
-                </button>
-                <button
-                  onClick={() => handleDelete(p)}
-                  className="flex items-center justify-center px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {canManageProjects && (
+                  <>
+                    <button
+                      onClick={() => handleEdit(p)}
+                      className="flex items-center justify-center px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(p)}
+                      className="flex items-center justify-center px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </>
+                )}
               </div>
             </Card>
           ))}

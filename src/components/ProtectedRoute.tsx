@@ -2,10 +2,12 @@ import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { FullPageLoader } from '@/components/ui/LoadingSpinner';
+import type { UserRole } from '@/types';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRole?: 'admin' | 'sales';
+  /** Gate the route to one role; all three roles (admin | manager | sales) are valid. */
+  requiredRole?: UserRole;
 }
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {

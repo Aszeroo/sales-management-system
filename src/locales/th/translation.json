@@ -68,6 +68,11 @@
     "project": "โครงการ",
     "salesPerson": "พนักงานขาย"
   },
+  "role": {
+    "admin": "ผู้ดูแลระบบ",
+    "manager": "ผู้จัดการ",
+    "sales": "ฝ่ายขาย"
+  },
   "sidebar": {
     "dashboard": "แดชบอร์ด",
     "sales": "ฝ่ายขาย",

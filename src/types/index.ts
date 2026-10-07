@@ -51,7 +51,9 @@ export interface Project {
   deleted_at: string | null;
 }
 
-export type UserRole = 'admin' | 'sales';
+// Exactly three roles (ADR-0001). Role comes from user metadata; Admin is
+// never Owner-capable, Sales and Manager each own a sales row.
+export type UserRole = 'admin' | 'manager' | 'sales';
 
 export interface AuthUser {
   id: string;

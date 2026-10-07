@@ -11,7 +11,16 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
+  isManager: boolean;
   isSales: boolean;
+}
+
+const AUTHORIZED_ROLES: readonly UserRole[] = ['admin', 'manager', 'sales'];
+
+function toUserRole(value: unknown): UserRole {
+  // Role comes from user metadata; anything outside the 3-value vocabulary
+  // (or missing) behaves as 'sales' — mirroring the DB's get_user_role().
+  return AUTHORIZED_ROLES.includes(value as UserRole) ? (value as UserRole) : 'sales';
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const buildUser = useCallback((authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }) => {
-    const role = (authUser.user_metadata?.role as UserRole) || 'sales';
+    const role = toUserRole(authUser.user_metadata?.role);
     return {
       id: authUser.id,
       email: authUser.email || '',
@@ -132,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signOut,
         isAdmin: user?.role === 'admin',
+        isManager: user?.role === 'manager',
         isSales: user?.role === 'sales',
       }}
     >
