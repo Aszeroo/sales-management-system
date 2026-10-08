@@ -66,7 +66,7 @@
 - **Owner-capable = Sales + Manager** — ทั้งสองบทบาทมีแถวในตาราง `sales` โดยอัตโนมัติตั้งแต่สมัคร (มีแถว = เป็นเจ้าของลูกค้าได้); **Admin ไม่มีแถว sales และเป็นเจ้าของลูกค้าไม่ได้ตลอดไป**
 - **การจัดการบัญชีผู้ใช้เป็น RPC** — `admin_create_user`, `admin_change_role`, `admin_reset_password`, `admin_set_user_active`, `admin_list_users`, `admin_pending_reassignment_count` (ตรวจสิทธิ์ Admin ทุกตัว)
 - **Ban = ห้ามล็อกอินจริง** — ปิดบัญชีตั้ง `banned_until` ไกลอนาคตใน `auth.users` GoTrue ปฏิเสธทุกการล็อกอินจนกว่าจะเปิดกลับ
-- **การลบทั้ งหมดเป็น soft delete** ผ่าน RPC `soft_delete_customer` / `soft_delete_project` เท่านั้ น — ที่ฐานข้อมูลไม่มี RLS policy FOR DELETE บน customers/projects เหลืออยู่เลยสำหรับทุกบทบาท (รวม Admin) การเรียก hard DELETE ตรงจุงไม่กระทบแถวใดเลย
+- **การลบทั้งหมดเป็น soft delete** ผ่าน RPC `soft_delete_customer` / `soft_delete_project` เท่านั้น — ที่ฐานข้อมูลไม่มี RLS policy FOR DELETE บน customers/projects เหลืออยู่เลยสำหรับทุกบทบาท (รวม Admin) การเรียก hard DELETE ตรง ๆ จึงไม่กระทบแถวใดเลย
 
 ---
 
@@ -174,6 +174,7 @@ sms/
 │   │   ├── supabase.ts           # Supabase client
 │   │   ├── i18n.ts               # i18next (th/en)
 │   │   ├── roles.ts              # coerceUserRole + isAdminRole/isManagerRole/isSalesRole
+│   │   ├── permissions.ts        # ตารางสิทธิ์กลาง (can* ต่อบทบาท + dashboardScope + isOwnerCapable)
 │   │   ├── status.ts             # คลังสถานะลูกค้า/โครงการ (badge, label, filter)
 │   │   ├── audit.ts              # touchUpdatedAt() สำหรับทุก UPDATE
 │   │   └── utils.ts              # formatCurrency, formatDate
@@ -205,7 +206,7 @@ sms/
 │   │       ├── customers/        # มุมมองจัดการลูกค้า (admin)
 │   │       └── projects/         # มุมมองจัดการโครงการ (admin)
 │   └── tests/                    # Vitest ต่อ Supabase จริง (ดูหัวข้อการทดสอบ)
-├── .env.example                  # template ของ VITE_SUPABASE_*
+├── .env.example                  # template ของ VITE_SUPABASE_* + SUPABASE_SERVICE_KEY
 ├── vercel.json                   # SPA routing config
 ├── vite.config.ts                # React + Tailwind plugin + manualChunks
 └── package.json
@@ -237,7 +238,7 @@ Route guard: `ProtectedRoute` — ไม่ล็อกอิน → `/login`; �
 - **SECURITY DEFINER helpers** — `get_user_role()` (จาก JWT metadata), `current_sales_id()` (แถว sales ของผู้ใช้ปัจจุบัน = ตัวตั้งของ ownership), `customer_sales_owner_id()` (ค่า owner เดิมก่อน UPDATE — ใช้ปักหลักว่า Manager เปลี่ยน owner ไม่ได้)
 - **Auto sales row trigger** — `handle_new_user` บน `auth.users`: สร้าง profile ให้ทุกคน + แถว sales ให้เฉพาะ `sales`/`manager` (sales_code/username จาก metadata ถ้ามี, generate ถ้าไม่มี)
 - **Owner-capable ได้แถว sales เสมอ, Admin ไม่มี** — `admin_change_role` รักษาเงื่อนไขนี้ทั้งเลื่อนขึ้น (soft delete แถว) และลดกลับ (revive แถวเดิมหรือสร้างใหม่)
-- **Soft delete ผ่าน RPC เท่านั้ น** — UPDATE ปกติที่เซ็ต `deleted_at` จะทำให้แถว fail read policy ของตัวเองกลางทาง `soft_delete_customer`/`soft_delete_project` จุงเป็นทางเดียวที่ลบได้ และเป็นตัวบังคับ "ใครลบอะไรได้" — ที่ฐานข้อมูล เหนือขึ้ นไปกว่านั้ น บน customers/projects ไม่มี RLS policy FOR DELETE เหลือสำหรับทุกบทบาท (hard DELETE ไม่กระทบแถวใดเลย)
+- **Soft delete ผ่าน RPC เท่านั้น** — UPDATE ปกติที่เซ็ต `deleted_at` จะทำให้แถว fail read policy ของตัวเองกลางทาง `soft_delete_customer`/`soft_delete_project` จึงเป็นทางเดียวที่ลบได้ และเป็นตัวบังคับ "ใครลบอะไรได้" — ที่ฐานข้อมูล เหนือขึ้นไปกว่านั้น บน customers/projects ไม่มี RLS policy FOR DELETE เหลือสำหรับทุกบทบาท (hard DELETE ไม่กระทบแถวใดเลย)
 - **การจัดการบัญชีผ่าน RPC (ADR-0001)** — ไม่มีการ hack `signUp` จากหน้าจัดการ และไม่มี service key ใน frontend; ทุก RPC ตรวจบทบาท Admin เป็น statement แรก
 - **Auto logout 10 นาที** — จับ `mousedown`/`keydown`/`scroll`/`touchstart` reset ตัวจับเวลา
 - **i18n** — `th`/`en` สลับที่ Sidebar (และหน้าล็อกอิน) จำค่าไว้ใน `localStorage`
@@ -248,10 +249,10 @@ Route guard: `ProtectedRoute` — ไม่ล็อกอิน → `/login`; �
 
 ## การทดสอบ (Testing)
 
-ชุดทดสอบเป็น integration test จริง — **ไม่มี mock**: สมัครผู้ใช้จริงผ่าน Supabase Auth ของ local stack, ยิงผ่าน RLS จริงด้วย anon key, และ cleanup ด้วย service key ต้องรัน local Supabase ก่อน (ขั้นตอน 2–4 ด้านบน รวมถึง `SUPABASE_SERVICE_KEY` ใน `.env`)
+ชุดทดสอบเป็น integration test จริง — **ไม่มี mock**: สมัครผู้ใช้จริงผ่าน Supabase Auth ของ local stack, ยิงผ่าน RLS จริงด้วย anon key, และ cleanup ด้วย service key ต้องรัน local Supabase ก่อน (ขั้นตอน 2–4 ด้านบน รวมถึง `SUPABASE_SERVICE_KEY` ใน `.env`) — ข้อยกเว้นเดียวคือ `permissions.test.ts`: unit test ล้วนของ helper ตารางสิทธิ์ฝั่ง frontend ไม่แตะ DB
 
 ```bash
-npm test                  # ทั้งชุด (9 ไฟล์)
+npm test                  # ทั้งชุด (11 ไฟล์)
 npx vitest run src/tests/customer-permissions.test.ts   # เฉพาะไฟล์
 ```
 
@@ -262,10 +263,12 @@ npx vitest run src/tests/customer-permissions.test.ts   # เฉพาะไฟ�
 | `rls-regression.test.ts` | พฤติกรรม RLS เดิม (ยุค 2 บทบาท) ยังคงเดิมใต้โมเดล 3 บทบาท |
 | `soft-delete-only.test.ts` | ไม่มีบทบาทใด hard DELETE ได้ (direct DELETE = 0 rows) — ลบได้ทางเดียวคือ soft-delete RPC, Admin ลบแบบ soft ได้ทุกแถว |
 | `customer-permissions.test.ts` | ทุกเซลล์ matrix ฝั่ง Customer (อ่าน/สร้าง/แก้/ลบ/owner) |
+| `customer-owner-capable.test.ts` | payload สร้าง Customer ฝั่ง service (issue #23): owner-capable ไม่มีแถว sales ในมือ = ไม่ส่งฟิลด์ owner (trigger auto-assign), มีแถว = ส่ง owner ของตัวเองชัดเจน |
 | `project-permissions.test.ts` | ทุกเซลล์ matrix ฝั่ง Project + การกรองตัวเลือกลูกค้าของฟอร์ม |
 | `dashboard-scoping.test.ts` | scope แดชบอร์ด own/org ทั้ง 3 บทบาท |
 | `user-management.test.ts` | สร้างบัญชี/ban จริง/owner guard/เปลี่ยนบทบาท/รีเซ็ตรหัสผ่าน/RPC admin-only |
 | `role-names-i18n.test.ts` | ชื่อบทบาทครบทั้ง th/en |
+| `permissions.test.ts` | unit test ล้วนของ helper ตารางสิทธิ์กลาง (issue #22): แถว matrix ทุกช่อง + isOwnerCapable/losesOwnerCapability + dashboardScope (ไม่แตะ DB) |
 
 `docs/manual-checklist.md` คือเช็คลิสต์ตรวจด้วยมือทั้งระบบ (ทุกเซลล์ของ matrix + พฤติกรรมที่ทดสอบอัตโนมัติไม่ครอบ) พร้อมผลการตรวจล่าสุด
 
