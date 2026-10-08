@@ -228,6 +228,20 @@ describe('Project permissions per the matrix (issue #5)', () => {
     expect(updated.project_name).toBe(`Manager renamed ${code}`)
   })
 
+  test('update: admin can update any project', async () => {
+    // Issue #19: Admin's FOR ALL on projects was split into SELECT/INSERT/
+    // UPDATE policies — this guards that UPDATE (the whole write path minus
+    // hard DELETE) is still fully open to Admin. Closes the update-cell gap
+    // left by the original issue #5 acceptance criteria.
+    const code = createdProjectCodes[1] // under salesB's customer — Admin owns nothing
+    const updated = await projectService.update(
+      (await projectIdByCode(code)) as string,
+      { project_name: `Admin renamed ${code}` },
+      users.admin.client,
+    )
+    expect(updated.project_name).toBe(`Admin renamed ${code}`)
+  })
+
   test('update: manager cannot soft delete via a plain UPDATE (no delete right)', async () => {
     const code = createdProjectCodes[1] // under salesB's customer
     await expect(

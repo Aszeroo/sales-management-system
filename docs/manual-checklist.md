@@ -23,7 +23,7 @@
 | 1.3 | สร้าง: Manager ได้ทุกรายการ (explicit owner ได้) | test `create: manager can insert any customer (explicit owner allowed)` | ผ่าน | [test] |
 | 1.4 | สร้าง: Sales auto เป็น owner ของตัวเอง | test `create: sales insert becomes the Sales Owner automatically` (DB trigger `set_default_customer_owner`) | ผ่าน | [test] |
 | 1.5 | สร้าง: Sales ตั้งคนอื่นเป็น owner ไม่ได้ | test `create: sales cannot assign another Sales Owner` | ผ่าน | [test] |
-| 1.6 | แก้ไข: Admin ทั้งหมด | โดยอาศัย policy FOR ALL — test `admin keeps full access on customers` (`rls-regression.test.ts`) + 1.2 | ผ่าน | [test] |
+| 1.6 | แก้ไข: Admin ทั้งหมด | โดยอาศัย policy แยก action ของ Admin (SELECT/INSERT/UPDATE — บน customers/projects ไม่มี FOR DELETE policy เหลือสำหรับทุกบทบาท) — test `admin keeps full access on customers` (`rls-regression.test.ts`) + 1.2 | ผ่าน | [test] |
 | 1.7 | แก้ไข: Manager ได้ทุกรายการ | test `update: manager can update any customer` | ผ่าน | [test] |
 | 1.8 | แก้ไข: Manager เปลี่ยน Sales Owner ไม่ได้ | test `update: manager cannot change the Sales Owner (read-only field)` (RLS pin ผ่าน `customer_sales_owner_id()`) | ผ่าน | [test] |
 | 1.9 | แก้ไข: Sales เฉพาะของตน | tests `update: sales can update own customer` + `update: sales cannot update another sales' customer` | ผ่าน | [test] |
@@ -99,7 +99,8 @@
 | 6.1 | Soft delete ทั้งหมด (ลูกค้า/โครงการ → `deleted_at`, ไม่ลบจริง) | ทุก test ลบใน 1.11–1.13 / 2.10–2.12 (RPC เซ็ต timestamp) | ผ่าน | [test] |
 | 6.2 | แถวที่ลบแล้วหายจากทุกการอ่าน (list/detail/dropdown) | โค้ด: filter `deleted_at IS NULL` ในทุก read — `customer.service.ts:29,42,56,114`, `project.service.ts:25,38,51,88-89,99`, `sales.service.ts:17,30,45,69` | โครงสร้างถูกต้อง | [code] |
 | 6.3 | ไม่มี UI กู้คืน/undo หลังลบ (ยืนยันก่อนลบด้วย Swal) | โค้ด: `useCrudList.ts:108-129` (Swal confirm → ลบ → success Swal; ไม่มี undo) | โครงสร้างตรงที่ออกแบบ | [code] + visual แนะนำ |
-| 6.4 | พฤติกรรม RLS ยุค 2 บทบาทเดิมยังคงเดิมทั้งหมด | 8 tests ใน `rls-regression.test.ts` (sales insert/update/ลบของตน, อ่านทุกแถว, admin เต็ม, sales แทรกโครงการใต้ customer ตน) | ผ่าน | [test] |
+| 6.4 | พฤติกรรม RLS ยุค 2 บทบาทเดิมยังคงเดิมทั้งหมด | 8 tests ใน `rls-regression.test.ts` (issue #19: เดินผ่าน service layer — sales insert/update/ลบของตน, อ่านทุกแถว, admin เต็ม, sales แทรกโครงการใต้ customer ตน) | ผ่าน | [test] |
+| 6.4b | ไม่มีบทบาทใด hard DELETE Customer/Project ได้ (DB-level, issue #19) | tests `soft-delete-only.test.ts` (direct DELETE = 0 rows สำหรับ sales/manager/admin, soft delete RPC ยังหวังผล) + ตรวจ `pg_policies` หลัง `db reset` | ผ่าน | [test] |
 | 6.5 | Trigger สมัคร: sales/manager ได้แถว sales อัตโนมัติ (generate code เมื่อไม่ระบุ, คง metadata ที่ระบุแบบ byte-for-byte) | tests `three-roles.test.ts` 4 ข้อแรก | ผ่าน | [test] |
 | 6.6 | Admin สมัคร = ไม่มีแถว sales เด็ดขาด | tests `admin signup → no sales row` + helper `returns null for admin` | ผ่าน | [test] |
 | 6.7 | ทั้ง 3 บทบาทล็อกอินได้จริง | test `all three roles can log in` | ผ่าน | [test] |

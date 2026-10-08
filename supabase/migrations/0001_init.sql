@@ -35,7 +35,9 @@
 --     with the owned count (admin_set_user_active / admin_change_role).
 --   - Every delete is a soft delete (deleted_at timestamp), performed by the
 --     soft_delete_* RPCs — a plain UPDATE cannot do it (the row would fail
---     its own read policy mid-update).
+--     its own read policy mid-update). customers and projects carry NO
+--     FOR DELETE policy for ANY role (Admin included): a direct hard DELETE
+--     through the API matches zero rows for everyone (issue #19).
 -- =================================
 
 -- =================================
@@ -428,16 +430,35 @@ CREATE POLICY "Sales can view all sales" ON sales
 
 -- ---- customers ----
 -- Read: every role sees every non-deleted Customer.
--- Create/edit: Admin any (FOR ALL), Manager any, Sales own only.
--- Delete (soft, via RPC): Admin any, Sales own only, Manager never.
+-- Create/edit: Admin any (per-action SELECT/INSERT/UPDATE policies),
+-- Manager any, Sales own only.
+-- Delete (soft, via RPC only): Admin any, Sales own only, Manager never.
+-- NO FOR DELETE policy exists for ANY role (issue #19) — hard DELETE is
+-- impossible through the API, including for Admin.
 -- Sales Owner column: Admin-only to change — the Manager UPDATE policy pins
 -- it to its pre-update value via customer_sales_owner_id(); the Sales
 -- policies' ownership predicate (sales_id = current_sales_id()) pins it for
 -- Sales. The BEFORE INSERT trigger auto-assigns it for owner-capable
 -- creators.
+
+-- Admin: split-action policies (SELECT/INSERT/UPDATE only). The legacy
+-- catch-all "Admin full access on customers" FOR ALL policy granted DELETE
+-- too, so it is dropped and NOT recreated. WITH CHECK defaults to the USING
+-- expression, so Admin still writes any column freely (incl. reassigning
+-- the Sales Owner) — identical to the old FOR ALL minus DELETE.
 DROP POLICY IF EXISTS "Admin full access on customers" ON customers;
-CREATE POLICY "Admin full access on customers" ON customers
-  FOR ALL USING (get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Admin can view all customers" ON customers;
+CREATE POLICY "Admin can view all customers" ON customers
+  FOR SELECT USING (get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Admin can insert customers" ON customers;
+CREATE POLICY "Admin can insert customers" ON customers
+  FOR INSERT WITH CHECK (get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Admin can update customers" ON customers;
+CREATE POLICY "Admin can update customers" ON customers
+  FOR UPDATE USING (get_user_role() = 'admin');
 
 DROP POLICY IF EXISTS "Sales can view all customers" ON customers;
 CREATE POLICY "Sales can view all customers" ON customers
@@ -457,11 +478,10 @@ CREATE POLICY "Sales can update own customers" ON customers
     get_user_role() = 'sales' AND sales_id = current_sales_id()
   );
 
+-- Hard DELETE removed (issue #19): the old "Sales can delete own customers"
+-- FOR DELETE policy is dropped and NOT recreated — Sales deletes go through
+-- the soft_delete_customer RPC only.
 DROP POLICY IF EXISTS "Sales can delete own customers" ON customers;
-CREATE POLICY "Sales can delete own customers" ON customers
-  FOR DELETE USING (
-    get_user_role() = 'sales' AND sales_id = current_sales_id()
-  );
 
 -- Manager can create any Customer (explicit owner allowed = creating on
 -- behalf of a salesperson; omitted owner is auto-stamped by the trigger).
@@ -485,18 +505,33 @@ CREATE POLICY "Manager can update customers" ON customers
     sales_id = customer_sales_owner_id(id)
   );
 
--- DELETE: deliberately NO manager policy — every DELETE is rejected for the
--- manager (Permission Matrix: Manager cannot delete).
+-- DELETE: no policy for any role (see above) — every direct DELETE, the
+-- manager's included, matches zero rows (Permission Matrix: Manager cannot
+-- delete; nobody else may hard-delete either).
 
 -- ---- projects ----
 -- Read: every role sees every non-deleted Project.
--- Create/edit: Admin any, Manager under any live Customer, Sales only under
--- own Customers (the subquery is evaluated under the caller's own read
--- policies). Delete (soft, via RPC): Admin any, Sales own-customer rows,
--- Manager never.
+-- Create/edit: Admin any (per-action SELECT/INSERT/UPDATE policies),
+-- Manager under any live Customer, Sales only under own Customers (the
+-- subquery is evaluated under the caller's own read policies).
+-- Delete (soft, via RPC only): Admin any, Sales own-customer rows,
+-- Manager never. NO FOR DELETE policy exists for ANY role (issue #19).
+
+-- Admin: split-action policies, mirroring customers — the legacy FOR ALL
+-- (which granted DELETE) is dropped and NOT recreated.
 DROP POLICY IF EXISTS "Admin full access on projects" ON projects;
-CREATE POLICY "Admin full access on projects" ON projects
-  FOR ALL USING (get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Admin can view all projects" ON projects;
+CREATE POLICY "Admin can view all projects" ON projects
+  FOR SELECT USING (get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Admin can insert projects" ON projects;
+CREATE POLICY "Admin can insert projects" ON projects
+  FOR INSERT WITH CHECK (get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Admin can update projects" ON projects;
+CREATE POLICY "Admin can update projects" ON projects
+  FOR UPDATE USING (get_user_role() = 'admin');
 
 DROP POLICY IF EXISTS "Sales can view all projects" ON projects;
 CREATE POLICY "Sales can view all projects" ON projects
@@ -518,12 +553,10 @@ CREATE POLICY "Sales can update own projects" ON projects
     customer_id IN (SELECT id FROM customers WHERE sales_id = current_sales_id() AND deleted_at IS NULL)
   );
 
+-- Hard DELETE removed (issue #19): the old "Sales can delete own projects"
+-- FOR DELETE policy is dropped and NOT recreated — Sales deletes go through
+-- the soft_delete_project RPC only.
 DROP POLICY IF EXISTS "Sales can delete own projects" ON projects;
-CREATE POLICY "Sales can delete own projects" ON projects
-  FOR DELETE USING (
-    get_user_role() = 'sales' AND
-    customer_id IN (SELECT id FROM customers WHERE sales_id = current_sales_id() AND deleted_at is null)
-  );
 
 -- Manager: create/edit under any (live) customer; deleted_at must stay NULL.
 DROP POLICY IF EXISTS "Manager can insert projects" ON projects;
@@ -543,8 +576,9 @@ CREATE POLICY "Manager can update projects" ON projects
     get_user_role() = 'manager' AND deleted_at IS NULL
   );
 
--- DELETE: deliberately NO manager policy (Permission Matrix: Manager cannot
--- delete); the soft_delete_project RPC enforces the same rule.
+-- DELETE: no policy for any role (see above) — direct DELETE matches zero
+-- rows for everyone, the manager's included (Permission Matrix: Manager
+-- cannot delete); the soft_delete_project RPC enforces the same rule.
 
 -- =================================
 -- 10. Soft-delete RPCs — the app's delete operations
