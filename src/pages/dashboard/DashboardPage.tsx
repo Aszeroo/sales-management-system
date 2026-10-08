@@ -6,6 +6,7 @@ import { Card, CardStat } from '@/components/ui/Card';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { dashboardScope } from '@/lib/permissions';
 import { PROJECT_STATUSES, STATUS_I18N_KEYS } from '@/lib/status';
 import {
   Users,
@@ -32,14 +33,14 @@ const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#E
 
 export default function DashboardPage() {
   const { t } = useTranslation();
-  const { user, isAdmin, isManager } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
 
   useEffect(() => {
     loadData();
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [isAdmin, isManager, user]);
+  }, [user]);
 
   async function loadData() {
     try {
@@ -51,7 +52,7 @@ export default function DashboardPage() {
       console.error('Failed to load dashboard data:', err);
       // Zeroed fallback of the right scope keeps the page renderable.
       setDashboard(
-        isAdmin || isManager
+        dashboardScope(user?.role) === 'org'
           ? { scope: 'org', salesList: [], totalCustomers: 0, totalProjects: 0, totalBudget: 0 }
           : { scope: 'own', salesId: null, customers: [], projects: [] },
       );

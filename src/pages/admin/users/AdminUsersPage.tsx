@@ -14,7 +14,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Swal from 'sweetalert2';
-import { isAdminRole } from '@/lib/roles';
+import { losesOwnerCapability } from '@/lib/permissions';
 import { USER_ROLES } from '@/types';
 import type { ManagedUser } from '@/types';
 import { CardGrid, ListPageHeader, ListToolbar } from '@/components/shared/list';
@@ -370,7 +370,7 @@ function ChangeRoleModal({
       // Advance warning BEFORE attempting (ADR-0001): promoting a Sales
       // Owner to admin would leave their customers ownerless — the RPC
       // rejects with the same count if the operator proceeds anyway.
-      if (isAdminRole(data.role) && !isAdminRole(target.role)) {
+      if (losesOwnerCapability(target.role, data.role)) {
         const owned = await userService.getPendingReassignmentCount(target.user_id);
         if (owned > 0) {
           setLoading(false);
