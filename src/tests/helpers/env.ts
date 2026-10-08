@@ -7,7 +7,7 @@ import processEnv from 'process'
  * Required:
  *   VITE_SUPABASE_URL       — http://127.0.0.1:54321 (or shifted port)
  *   VITE_SUPABASE_ANON_KEY  — the anon JWT
- *   VITE_SUPABASE_SERVICE_KEY — local service-role (for the test's cleanup)
+ *   SUPABASE_SERVICE_KEY — local service-role (for the test's cleanup)
  */
 export function getEnvUrl(): string {
   const url = processEnv.env.VITE_SUPABASE_URL
@@ -32,10 +32,10 @@ export function getEnvAnonKey(): string {
 }
 
 export function getEnvServiceKey(): string {
-  const key = processEnv.env.VITE_SUPABASE_SERVICE_KEY
+  const key = processEnv.env.SUPABASE_SERVICE_KEY
   if (!key) {
     throw new Error(
-      'VITE_SUPABASE_SERVICE_KEY missing in .env. The local service-role key ' +
+      'SUPABASE_SERVICE_KEY missing in .env. The local service-role key ' +
         'is listed by `npx supabase status` under `service_role`. Copy it into ' +
         '.env — the smoke test cleanup needs it (RLS-bypass).',
     )

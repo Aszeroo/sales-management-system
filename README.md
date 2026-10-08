@@ -115,7 +115,7 @@ VITE_SUPABASE_URL=http://127.0.0.1:54351
 VITE_SUPABASE_ANON_KEY=eyJ...your-anon-key...
 ```
 
-Frontend ใช้แค่ URL + anon key เท่านั้น (ไม่มี service key ใน frontend) ถ้าจะรันชุดทดสอบ ให้เพิ่ม `VITE_SUPABASE_SERVICE_KEY` จาก `npx supabase status` ด้วย (ใช้แค่ตอน cleanup ของ test — ดูหัวข้อการทดสอบ) **ห้าม commit `.env`**
+Frontend ใช้แค่ URL + anon key เท่านั้น (ไม่มี service key ใน frontend) ถ้าจะรันชุดทดสอบ ให้เพิ่ม `SUPABASE_SERVICE_KEY` จาก `npx supabase status` ด้วย (ใช้แค่ตอน cleanup ของ test — ดูหัวข้อการทดสอบ) **ห้าม commit `.env`**
 
 ### 5. ล็อกอินด้วยบัญชี seed (ครบ 3 บทบาท)
 
@@ -248,7 +248,7 @@ Route guard: `ProtectedRoute` — ไม่ล็อกอิน → `/login`; �
 
 ## การทดสอบ (Testing)
 
-ชุดทดสอบเป็น integration test จริง — **ไม่มี mock**: สมัครผู้ใช้จริงผ่าน Supabase Auth ของ local stack, ยิงผ่าน RLS จริงด้วย anon key, และ cleanup ด้วย service key ต้องรัน local Supabase ก่อน (ขั้นตอน 2–4 ด้านบน รวมถึง `VITE_SUPABASE_SERVICE_KEY` ใน `.env`)
+ชุดทดสอบเป็น integration test จริง — **ไม่มี mock**: สมัครผู้ใช้จริงผ่าน Supabase Auth ของ local stack, ยิงผ่าน RLS จริงด้วย anon key, และ cleanup ด้วย service key ต้องรัน local Supabase ก่อน (ขั้นตอน 2–4 ด้านบน รวมถึง `SUPABASE_SERVICE_KEY` ใน `.env`)
 
 ```bash
 npm test                  # ทั้งชุด (9 ไฟล์)
