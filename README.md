@@ -117,17 +117,19 @@ VITE_SUPABASE_ANON_KEY=eyJ...your-anon-key...
 
 Frontend ใช้แค่ URL + anon key เท่านั้น (ไม่มี service key ใน frontend) ถ้าจะรันชุดทดสอบ ให้เพิ่ม `VITE_SUPABASE_SERVICE_KEY` จาก `npx supabase status` ด้วย (ใช้แค่ตอน cleanup ของ test — ดูหัวข้อการทดสอบ) **ห้าม commit `.env`**
 
-### 5. สร้าง Admin User คนแรก
+### 5. ล็อกอินด้วยบัญชี seed (ครบ 3 บทบาท)
 
-แอปไม่มีหน้าสมัครสมาชิก — บัญชีสร้างโดย Admin ผ่านหน้า "ผู้ใช้" เท่านั้น ดังนั้น Admin คนแรกต้องสร้างตรงที่ Supabase:
+`supabase/seed.sql` รันอัตโนมัติทันทีหลัง migrations ทุกครั้งที่ `npx supabase db reset` — ได้บัญชี login พร้อมใช้ครบทั้ง 3 บทบาททันที (ล็อกอินผ่านแอปได้เลย — email confirm ปิดอยู่ใน local config):
 
-1. เปิด Supabase Studio: `http://127.0.0.1:54353` (พอร์ตจาก `npx supabase status`)
-2. **Authentication → Users → Add user** — ใส่อีเมล/รหัสผ่าน (email confirm ปิดอยู่ใน local config ล็อกอินได้ทันที)
-3. แก้ **User Metadata** ของผู้ใช้นั้นเป็น:
-   ```json
-   { "role": "admin", "full_name": "Admin User" }
-   ```
-4. ล็อกอินผ่านแอปด้วยบัญชีนั้น แล้วสร้างบัญชีอื่น ๆ ต่อจากหน้า **ผู้ใช้** (`/admin/users`) ได้เลย
+| อีเมล | รหัสผ่าน | บทบาท | แถว sales |
+|------|----------|-------|-----------|
+| `admin@example.com` | `Seed-Password-123` | `admin` | ไม่มี (ADR-0001 — Admin ไม่เป็นเจ้าของ) |
+| `manager@example.com` | `Seed-Password-123` | `manager` | `SEED-MG-001` |
+| `sales@example.com` | `Seed-Password-123` | `sales` | `SEED-SL-001` |
+
+แถว sales ของ manager/sales เกิดจาก trigger `on_auth_user_created` ตัวจริง (เดียวกันกับ signup ผ่านแอป) สร้างบัญชีอื่น ๆ ต่อจากหน้า **ผู้ใช้** (`/admin/users`) ได้เลย
+
+> **สำหรับ local dev เท่านั้น** — รหัสผ่าน seed เป็นค่าที่รู้กันทั่วไป อย่านำไปใช้กับบัญชีบน cloud project (บน cloud ต้องสร้าง Admin เองที่ Supabase Studio → Authentication → Users แล้วแก้ User Metadata เป็น `{ "role": "admin", "full_name": "..." }`)
 
 > บัญชีที่ไม่ใส่ `role` จะถูกมองเป็น Sales โดยอัตโนมัติ (ทั้ง DB `get_user_role()` และ frontend `coerceUserRole`) และเฉพาะ `sales`/`manager` เท่านั้นที่ได้แถว sales อัตโนมัติจาก trigger
 
@@ -148,7 +150,7 @@ supabase/
 ├── migrations/
 │   └── 0001_init.sql     # ทั้งระบบในไฟล์เดียว: ตาราง + index + trigger
 │                         #   + helper functions + RLS policies + RPCs
-├── seed.sql              # seed เสถียร (ปัจจุบันเป็น no-op — tests สร้างข้อมูลเองผ่าน signup จริง)
+├── seed.sql              # บัญชี login ครบ 3 บทบาท (admin/manager/sales) สำหรับ local dev
 └── config.toml           # ค่าคงที่ของ local stack (พอร์ต, auth, seed path)
 ```
 
@@ -249,13 +251,13 @@ Route guard: `ProtectedRoute` — ไม่ล็อกอิน → `/login`; �
 ชุดทดสอบเป็น integration test จริง — **ไม่มี mock**: สมัครผู้ใช้จริงผ่าน Supabase Auth ของ local stack, ยิงผ่าน RLS จริงด้วย anon key, และ cleanup ด้วย service key ต้องรัน local Supabase ก่อน (ขั้นตอน 2–4 ด้านบน รวมถึง `VITE_SUPABASE_SERVICE_KEY` ใน `.env`)
 
 ```bash
-npm test                  # ทั้งชุด (8 ไฟล์)
+npm test                  # ทั้งชุด (9 ไฟล์)
 npx vitest run src/tests/customer-permissions.test.ts   # เฉพาะไฟล์
 ```
 
 | ไฟล์ | ครอบคลุม |
 |------|----------|
-| `supabase-smoke.test.ts` | สมัคร Sales → ได้แถว sales → เป็นเจ้าของลูกค้า → อ่านกลับได้ |
+| `supabase-smoke.test.ts` | ล็อกอินด้วยบัญชี seed ครบ 3 บทบาท → แถว sales ตามบทบาท (admin ไม่มี) → สร้าง/อ่าน Customer ผ่าน services layer |
 | `three-roles.test.ts` | trigger สร้างแถว sales ตามบทบาท, ล็อกอินทักษะ, helper ownership |
 | `rls-regression.test.ts` | พฤติกรรม RLS เดิม (ยุค 2 บทบาท) ยังคงเดิมใต้โมเดล 3 บทบาท |
 | `soft-delete-only.test.ts` | ไม่มีบทบาทใด hard DELETE ได้ (direct DELETE = 0 rows) — ลบได้ทางเดียวคือ soft-delete RPC, Admin ลบแบบ soft ได้ทุกแถว |
