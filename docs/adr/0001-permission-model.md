@@ -52,3 +52,10 @@ $$;
 ```
 
 การเปลี่ยนบทบาท/ปิดบัญชี/สร้างผู้ใช้ ใช้ SECURITY DEFINER RPC ที่ Admin เรียกผ่าน anon key (แทนการ hack `signUp` เดิมของหน้าจัดการ Sales ที่ถูกแทนด้วยหน้า "ผู้ใช้" รวม — issue #7; RPC ทั้งหมด (`admin_create_user`, `admin_change_role`, `admin_reset_password`, `admin_set_user_active`, `admin_list_users`, `admin_pending_reassignment_count`) ปัจจุบันอยู่ใน `supabase/migrations/0001_init.sql`) — ดูเพิ่มเติม: `src/contexts/AuthContext.tsx` (role + auto-logout), `src/components/ProtectedRoute.tsx` (route guard)
+
+## Addendum — 2026-10-08 (issue #25)
+
+ปิดรอบ hardening (#19–#24) ด้วยการบันทึกสอง decision ที่ review ถามถึง ให้เอกสารทุกชั้นพูดเรื่องเดียวกัน:
+
+- **Manager เขียน own row บน sales record — ตั้งใจ ขอบเขต own-row เท่านั้น ไม่ revert** — แถว sales ของ Owner-capable ทุกคน (รวม Manager) ถูกเขียนโดยกลไกใน migration เดียว (`supabase/migrations/0001_init.sql` — ยุบจาก migration ยุคสร้างระบบที่มีมาก่อน spec hardening): trigger สมัครสร้างแถวให้ตั้งแต่ signup และ `admin_change_role` เป็นฝ่ายรักษาแถวนั้นตลอด flow เปลี่ยนบทบาท (revive แถวเดิมหรือสร้างใหม่เมื่อกลับมาเป็น Owner-capable) — flow เปลี่ยนบทบาทพึ่งพิงสิ่งนี้โดยตรง ข้อ scope creep จาก review หลัง merge จึงปิดด้วยการยอมรับว่า**ตั้งใจ** โดยขอบเขตจำกัดที่ own-row เท่านั้น: ไม่เคยมีการให้ Manager เขียนแถว sales ของผู้อื่น และการเขียนตาราง `sales` ผ่าน API ยังคงเป็นสิทธิ์ Admin เท่านั้น (กฎ #7)
+- **Route `/admin/*` คงอยู่ตามที่ ship — บันทึกการย้อน decision เดิมเรื่อง `/manage/*`** — PRD เดิม (issue #1) เสนอเปลี่ยน `/admin/*` → `/manage/*` พร้อมหน้าจัดการชุดเดียว แต่ระหว่างวางแผน hardening รอบนี้ decision ถูกย้อนอย่างมีสติ: **คง `/admin/*` ตามที่ ship ไปแล้ว** (ผู้ใช้/เอกสาร/URL ที่ฝังอยู่ทั้งหมดอ้าง path เดิม) — การ rename ไม่เคยถูก implement และไม่มีเอกสารฉบับไหนอ้าง `/manage/*` อยู่ จดการย้อนนี้ไว้ที่นี่เพื่อไม่ให้เอกสารขัดกันเอง (README ตาราง Routes, spec issue #18, ADR นี้ — ชุดเดียวกัน)
