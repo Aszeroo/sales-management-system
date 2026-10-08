@@ -66,7 +66,7 @@
 - **Owner-capable = Sales + Manager** — ทั้งสองบทบาทมีแถวในตาราง `sales` โดยอัตโนมัติตั้งแต่สมัคร (มีแถว = เป็นเจ้าของลูกค้าได้); **Admin ไม่มีแถว sales และเป็นเจ้าของลูกค้าไม่ได้ตลอดไป**
 - **การจัดการบัญชีผู้ใช้เป็น RPC** — `admin_create_user`, `admin_change_role`, `admin_reset_password`, `admin_set_user_active`, `admin_list_users`, `admin_pending_reassignment_count` (ตรวจสิทธิ์ Admin ทุกตัว)
 - **Ban = ห้ามล็อกอินจริง** — ปิดบัญชีตั้ง `banned_until` ไกลอนาคตใน `auth.users` GoTrue ปฏิเสธทุกการล็อกอินจนกว่าจะเปิดกลับ
-- **การลบทั้งหมดเป็น soft delete** ผ่าน RPC `soft_delete_customer` / `soft_delete_project` เท่านั้น
+- **การลบทั้ งหมดเป็น soft delete** ผ่าน RPC `soft_delete_customer` / `soft_delete_project` เท่านั้ น — ที่ฐานข้อมูลไม่มี RLS policy FOR DELETE บน customers/projects เหลืออยู่เลยสำหรับทุกบทบาท (รวม Admin) การเรียก hard DELETE ตรงจุงไม่กระทบแถวใดเลย
 
 ---
 
@@ -235,7 +235,7 @@ Route guard: `ProtectedRoute` — ไม่ล็อกอิน → `/login`; �
 - **SECURITY DEFINER helpers** — `get_user_role()` (จาก JWT metadata), `current_sales_id()` (แถว sales ของผู้ใช้ปัจจุบัน = ตัวตั้งของ ownership), `customer_sales_owner_id()` (ค่า owner เดิมก่อน UPDATE — ใช้ปักหลักว่า Manager เปลี่ยน owner ไม่ได้)
 - **Auto sales row trigger** — `handle_new_user` บน `auth.users`: สร้าง profile ให้ทุกคน + แถว sales ให้เฉพาะ `sales`/`manager` (sales_code/username จาก metadata ถ้ามี, generate ถ้าไม่มี)
 - **Owner-capable ได้แถว sales เสมอ, Admin ไม่มี** — `admin_change_role` รักษาเงื่อนไขนี้ทั้งเลื่อนขึ้น (soft delete แถว) และลดกลับ (revive แถวเดิมหรือสร้างใหม่)
-- **Soft delete ผ่าน RPC เท่านั้น** — UPDATE ปกติที่เซ็ต `deleted_at` จะทำให้แถว fail read policy ของตัวเองกลางทาง `soft_delete_customer`/`soft_delete_project` จึงเป็นทางเดียวที่ลบได้ และเป็นตัวบังคับ "ใครลบอะไรได้"
+- **Soft delete ผ่าน RPC เท่านั้ น** — UPDATE ปกติที่เซ็ต `deleted_at` จะทำให้แถว fail read policy ของตัวเองกลางทาง `soft_delete_customer`/`soft_delete_project` จุงเป็นทางเดียวที่ลบได้ และเป็นตัวบังคับ "ใครลบอะไรได้" — ที่ฐานข้อมูล เหนือขึ้ นไปกว่านั้ น บน customers/projects ไม่มี RLS policy FOR DELETE เหลือสำหรับทุกบทบาท (hard DELETE ไม่กระทบแถวใดเลย)
 - **การจัดการบัญชีผ่าน RPC (ADR-0001)** — ไม่มีการ hack `signUp` จากหน้าจัดการ และไม่มี service key ใน frontend; ทุก RPC ตรวจบทบาท Admin เป็น statement แรก
 - **Auto logout 10 นาที** — จับ `mousedown`/`keydown`/`scroll`/`touchstart` reset ตัวจับเวลา
 - **i18n** — `th`/`en` สลับที่ Sidebar (และหน้าล็อกอิน) จำค่าไว้ใน `localStorage`
@@ -258,6 +258,7 @@ npx vitest run src/tests/customer-permissions.test.ts   # เฉพาะไฟ�
 | `supabase-smoke.test.ts` | สมัคร Sales → ได้แถว sales → เป็นเจ้าของลูกค้า → อ่านกลับได้ |
 | `three-roles.test.ts` | trigger สร้างแถว sales ตามบทบาท, ล็อกอินทักษะ, helper ownership |
 | `rls-regression.test.ts` | พฤติกรรม RLS เดิม (ยุค 2 บทบาท) ยังคงเดิมใต้โมเดล 3 บทบาท |
+| `soft-delete-only.test.ts` | ไม่มีบทบาทใด hard DELETE ได้ (direct DELETE = 0 rows) — ลบได้ทางเดียวคือ soft-delete RPC, Admin ลบแบบ soft ได้ทุกแถว |
 | `customer-permissions.test.ts` | ทุกเซลล์ matrix ฝั่ง Customer (อ่าน/สร้าง/แก้/ลบ/owner) |
 | `project-permissions.test.ts` | ทุกเซลล์ matrix ฝั่ง Project + การกรองตัวเลือกลูกค้าของฟอร์ม |
 | `dashboard-scoping.test.ts` | scope แดชบอร์ด own/org ทั้ง 3 บทบาท |
