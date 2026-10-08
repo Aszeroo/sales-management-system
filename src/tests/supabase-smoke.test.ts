@@ -1,113 +1,111 @@
-import { describe, expect, test } from 'vitest'
+import { afterAll, describe, expect, test } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import crypto from 'node:crypto'
 import { getEnvUrl, getEnvAnonKey, getEnvServiceKey } from './helpers/env'
+import { salesService } from '@/services/sales.service'
+import { customerService } from '@/services/customer.service'
 
 /**
- * Supabase local smoke test.
+ * Supabase local smoke test — runs against the SEED accounts.
  *
- * Proves the local stack + BASELINE migration reproduce today's 2-role
- * behavior faithfully: a throwaway Sales user, signed up via the app's real
- * signup path, gets a sales record from the `on_auth_user_created` trigger
- * and can own a Customer row under RLS. The destructive cleanup uses the
- * local service-role key (RLS-bypass) so the test is repeatable across
+ * The seed (supabase/seed.sql, applied by `npx supabase db reset`) creates
+ * one sign-in-able account per role, documented in the README's local-dev
+ * section. This test proves the reset-to-usable path a new developer walks:
+ * sign in with a seed account, rely on the signup trigger's auto sales row
+ * for the owner-capable roles (and its absence for admin), and round-trip a
+ * Customer through the services layer under real RLS. No throwaway signups
+ * anymore — the seed IS the fixture. Destructive cleanup uses the local
+ * service-role key (RLS-bypass) so the test is repeatable across
  * `npx supabase db reset`.
  */
-describe('Supabase local smoke', () => {
-  const password = 'Sm0k3-Password-123'
 
-  // fallow-ignore-next-line complexity
-  test('signs up a Sales user, owns a Customer row, reads it back, cleans up', async () => {
-    const url = getEnvUrl()
-    const anonKey = getEnvAnonKey()
-    const client = createClient(url, anonKey)
+// Keep these in sync with supabase/seed.sql and the README local-dev section.
+const SEED_PASSWORD = 'Seed-Password-123'
 
-    // Throwaway fixture: unique per run so the test is repeatable even when
-    // the auth.users row of a previous run cannot be cleared via Data API.
-    const rnd = crypto.randomUUID().slice(0, 8)
-    const email = `smoke-${rnd}@example.com`
-    const salesCode = `SMK-${rnd}`
-    const username = `smoke-${rnd}`
-    const fullName = 'Smoke Test Sales'
+const SEED_ACCOUNTS = [
+  { email: 'admin@example.com', role: 'admin', salesCode: null },
+  { email: 'manager@example.com', role: 'manager', salesCode: 'SEED-MG-001' },
+  { email: 'sales@example.com', role: 'sales', salesCode: 'SEED-SL-001' },
+] as const
 
-    // 1. Sign up a throwaway Sales user via the app's real signup path
-    //    (metadata carries role + sales_code + username so the trigger can
-    //    auto-create a sales record).
-    const { data: signUpData, error: signUpError } = await client.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          role: 'sales',
-          full_name: fullName,
-          sales_code: salesCode,
-          username,
-        },
-      },
-    })
-    if (signUpError) throw signUpError
-    const userId = signUpData.user?.id
-    if (!userId) throw new Error('signUp did not return a user id')
+async function signInAs(email: string): Promise<SupabaseClient> {
+  const client = createClient(getEnvUrl(), getEnvAnonKey())
+  const { error } = await client.auth.signInWithPassword({ email, password: SEED_PASSWORD })
+  if (error) {
+    throw new Error(
+      `seed account ${email} could not sign in — did \`npx supabase db reset\` ` +
+        `apply supabase/seed.sql? (${error.message})`,
+    )
+  }
+  return client
+}
 
-    // 2. Local auth auto-confirms emails by default — sign in immediately
-    const { error: signInError } = await client.auth.signInWithPassword({
-      email,
-      password,
-    })
-    if (signInError) throw signInError
+// Customer rows this test writes; removed after the suite with the
+// service-role key. The seed accounts themselves are permanent fixtures.
+const createdCustomerCodes: string[] = []
 
-    // 3. The trigger must have created our sales record for this user
-    const { data: salesRows, error: salesError } = await client
-      .from('sales')
-      .select('id')
-      .eq('user_id', userId)
-      .is('deleted_at', null)
-      .limit(1)
-    if (salesError) throw salesError
-    if (!salesRows || salesRows.length === 0) {
-      throw new Error(
-        'Missing sales record for signed-up Sales user — the ' +
-          'on_auth_user_created trigger did not run. Did `npx supabase db reset` ' +
-          'apply 0001_init.sql?',
-      )
+afterAll(async () => {
+  const admin = createClient(getEnvUrl(), getEnvServiceKey())
+  for (const code of createdCustomerCodes) {
+    await admin.from('customers').delete().eq('customer_code', code)
+  }
+})
+
+describe('Supabase local smoke (seed accounts)', () => {
+  test('every seed account signs in with its documented credentials', async () => {
+    for (const account of SEED_ACCOUNTS) {
+      const client = await signInAs(account.email)
+      const { data, error } = await client.auth.getUser()
+      expect(error).toBeNull()
+      expect(data.user?.email).toBe(account.email)
+      // The role lives in user metadata — the same source get_user_role()
+      // reads from the JWT, so a seed with the wrong shape fails here.
+      expect(data.user?.user_metadata?.role).toBe(account.role)
     }
-    const salesId = (salesRows[0] as { id: string }).id
+  })
 
-    // 4. Insert a Customer row the user owns (RLS INSERT: role=sales AND
-    //    sales_id = get_user_sales_id())
-    const customerCode = `SMK-${userId.slice(0, 8)}`
-    const { error: insertError } = await client
-      .from('customers')
-      .insert({
+  test('seed accounts carry the trigger-created sales rows (admin has none)', async () => {
+    for (const account of SEED_ACCOUNTS) {
+      const client = await signInAs(account.email)
+      const salesRow = await salesService.getCurrentUserSales(client)
+      if (account.salesCode === null) {
+        // ADR-0001: Admin is never a Sales Owner.
+        expect(salesRow).toBeNull()
+      } else {
+        expect(salesRow, `missing sales row for ${account.email}`).not.toBeNull()
+        expect(salesRow?.sales_code).toBe(account.salesCode)
+      }
+    }
+  })
+
+  test('seed Sales user round-trips a Customer through the services layer', async () => {
+    const sales = await signInAs('sales@example.com')
+    const salesRow = await salesService.getCurrentUserSales(sales)
+    if (!salesRow) throw new Error('seed sales account has no sales row')
+
+    // Owner column omitted: the DB trigger stamps it with this user's sales
+    // row and RLS validates the same rule (Sales can insert own customers).
+    const customerCode = `SMK-${crypto.randomUUID().slice(0, 8)}`
+    createdCustomerCodes.push(customerCode)
+    const created = await customerService.create(
+      {
         customer_code: customerCode,
         customer_name: 'Smoke Test Customer',
-        sales_id: salesId,
+        company_name: '',
+        contact_person: '',
+        phone: '',
+        email: '',
+        address: '',
+        description: '',
         status: 'active',
-      })
-    if (insertError) throw insertError
+      },
+      sales,
+    )
 
-    // 5. Read the owned Customer row back
-    const { data: ownCustomer, error: selectError } = await client
-      .from('customers')
-      .select('customer_code, sales_id')
-      .eq('customer_code', customerCode)
-      .limit(1)
-    if (selectError) throw selectError
-    if (!ownCustomer || ownCustomer.length === 0) {
-      throw new Error('Owned Customer row was not read back under RLS')
-    }
-
-    // 6. Clean up with the local service-role key (RLS-bypass).
-    //    The auth.users row cannot be reached via Data API (the auth schema
-    //    is not exposed); harmless to remain after a `db reset`.
-    const serviceKey = getEnvServiceKey()
-    const admin = createClient(url, serviceKey)
-
-    await admin.from('customers').delete().eq('customer_code', customerCode)
-    await admin.from('sales').delete().eq('user_id', userId)
-    await admin.from('profiles').delete().eq('id', userId)
-
-    expect(ownCustomer.length).toBeGreaterThanOrEqual(1)
-    expect(ownCustomer[0].sales_id).toBe(salesId)
+    const readBack = await customerService.getById(created.id, sales)
+    expect(readBack).not.toBeNull()
+    expect(readBack?.customer_code).toBe(customerCode)
+    expect(readBack?.sales_id).toBe(salesRow.id)
   })
 })
