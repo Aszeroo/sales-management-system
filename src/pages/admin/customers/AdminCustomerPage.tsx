@@ -21,7 +21,7 @@ export default function AdminCustomerPage() {
           onEdit={actions.onEdit}
           onDelete={actions.onDelete}
           compact
-          salesLabel={t('common.assignedTo')}
+          salesLabel={t('customerPage.salesOwner')}
         />
       )}
     />

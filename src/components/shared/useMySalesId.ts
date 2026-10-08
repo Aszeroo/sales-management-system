@@ -12,7 +12,9 @@ export function useMySalesId(): string | null {
 
   useEffect(() => {
     if (!isAdmin && user?.id) {
-      salesService.getByUserId(user.id).then((s) => {
+      // Canonical accessor of the sales service (issue #23) — same row and
+      // same null-when-none contract as the old by-user-id query.
+      salesService.getCurrentUserSales().then((s) => {
         if (s) setMySalesId(s.id);
       });
     }

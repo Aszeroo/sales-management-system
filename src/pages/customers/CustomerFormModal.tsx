@@ -34,7 +34,7 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
 
   useEffect(() => {
     if (!isAdmin && user?.id) {
-      salesService.getByUserId(user.id).then((s) => setMySales(s));
+      salesService.getCurrentUserSales().then(setMySales);
     }
   }, [isAdmin, user]);
 
@@ -46,7 +46,14 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
     email: z.string().email(t('validation.invalidEmail')).optional().or(z.literal('')),
     address: z.string().optional(),
     description: z.string().optional(),
-    sales_id: z.string().min(1, t('validation.required')),
+    // Sales Owner is required only on the Admin form (Admin assigns it).
+    // For owner-capable users the hidden field carries their own sales row
+    // when the client has it — and an owner-capable user with no sales row
+    // in hand yet submits WITHOUT the value, which is legal: the submit
+    // omits the field and the DB trigger auto-assigns it (issue #23).
+    sales_id: isAdmin
+      ? z.string().min(1, t('validation.required'))
+      : z.string().optional(),
     status: z.enum(CUSTOMER_STATUSES),
   });
 
@@ -107,9 +114,15 @@ export function CustomerFormModal({ isOpen, onClose, onSuccess, customer }: Cust
           const nextNum = allCustomers.length + 1;
           const code = `C${String(nextNum).padStart(3, '0')}`;
 
+          // Never send an empty-string Sales Owner: '' into a uuid column is
+          // a DB cast error. An owner-capable user whose own sales row is not
+          // in hand submits WITHOUT the field and the trigger auto-assigns
+          // the owner (issue #23); an Admin always has one picked here.
+          const { sales_id, ...fields } = data;
           await customerService.create({
             customer_code: code,
-            ...data,
+            ...fields,
+            ...(sales_id ? { sales_id } : {}),
             company_name: data.company_name || '',
             contact_person: data.contact_person || '',
             phone: data.phone || '',
