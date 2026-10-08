@@ -119,17 +119,17 @@ Frontend ใช้แค่ URL + anon key เท่านั้น (ไม่�
 
 ### 5. ล็อกอินด้วยบัญชี seed (ครบ 3 บทบาท)
 
-`supabase/seed.sql` รันอัตโนมัติทันทีหลัง migrations ทุกครั้นที่ `npx supabase db reset` — ไดบัญชี login พร้อมใชครบทัง 3 บทบาททันที (ล็อกอินผ่านแอปไดเลย — email confirm ปิดอยู่ใน local config):
+`supabase/seed.sql` รันอัตโนมัติทันทีหลัง migrations ทุกครั้งที่ `npx supabase db reset` — ได้บัญชี login พร้อมใช้ครบทั้ง 3 บทบาททันที (ล็อกอินผ่านแอปได้เลย — email confirm ปิดอยู่ใน local config):
 
 | อีเมล | รหัสผ่าน | บทบาท | แถว sales |
 |------|----------|-------|-----------|
-| `admin@example.com` | `Seed-Password-123` | `admin` | ไม่มี (ADR-0001 — Admin ไมเป็นเจาของ) |
+| `admin@example.com` | `Seed-Password-123` | `admin` | ไม่มี (ADR-0001 — Admin ไม่เป็นเจ้าของ) |
 | `manager@example.com` | `Seed-Password-123` | `manager` | `SEED-MG-001` |
 | `sales@example.com` | `Seed-Password-123` | `sales` | `SEED-SL-001` |
 
-แถว sales ของ manager/sales เกิตจาก trigger `on_auth_user_created` ตัวจริง (เดยวกกันกบ signup ผานแอป) สร้างบัญชีอื่่น ๆ ตอจากหนา **ผูดใช** (`/admin/users`) ไดเลย
+แถว sales ของ manager/sales เกิดจาก trigger `on_auth_user_created` ตัวจริง (เดียวกันกับ signup ผ่านแอป) สร้างบัญชีอื่น ๆ ต่อจากหน้า **ผู้ใช้** (`/admin/users`) ได้เลย
 
-> **สำหรับ local dev เท่านั้น** — รหัสผ่าน seed เปนคาทีรูกันทัวไป อยนานำไปใชกบบัญชีบน cloud project (บน cloud ตองสราง Admin เองที Supabase Studio → Authentication → Users แลวแก User Metadata เปน `{ "role": "admin", "full_name": "..." }`)
+> **สำหรับ local dev เท่านั้น** — รหัสผ่าน seed เป็นค่าที่รู้กันทั่วไป อย่านำไปใช้กับบัญชีบน cloud project (บน cloud ต้องสร้าง Admin เองที่ Supabase Studio → Authentication → Users แล้วแก้ User Metadata เป็น `{ "role": "admin", "full_name": "..." }`)
 
 > บัญชีที่ไม่ใส่ `role` จะถูกมองเป็น Sales โดยอัตโนมัติ (ทั้ง DB `get_user_role()` และ frontend `coerceUserRole`) และเฉพาะ `sales`/`manager` เท่านั้นที่ได้แถว sales อัตโนมัติจาก trigger
 
