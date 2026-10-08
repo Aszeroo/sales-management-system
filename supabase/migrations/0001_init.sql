@@ -187,18 +187,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER STABLE SET search_path = public;
 
--- Same contract as current_sales_id(); no RLS policy references it (they all
--- use current_sales_id()). Callable by any authenticated client.
-CREATE OR REPLACE FUNCTION get_user_sales_id()
-RETURNS UUID AS $$
-DECLARE
-  sid UUID;
-BEGIN
-  SELECT id INTO sid FROM sales WHERE user_id = auth.uid() AND deleted_at IS NULL LIMIT 1;
-  RETURN sid;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER STABLE SET search_path = public;
-
 -- The stored (pre-update) Sales Owner of a customer row. Lets an UPDATE
 -- policy's WITH CHECK pin sales_id to its old value: WITH CHECK only sees
 -- the proposed NEW row, so the pre-update value must be read through this
@@ -232,6 +220,42 @@ REVOKE ALL ON FUNCTION admin_owned_customer_count(UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION admin_owned_customer_count(UUID) FROM anon;
 REVOKE ALL ON FUNCTION admin_owned_customer_count(UUID) FROM authenticated;
 
+-- Single source of truth for a GENERATED Sales Owner identity (sales_code +
+-- username): pattern + id-suffix + collision retry loop live here only. The
+-- signup trigger and admin_change_role's fresh-row branch both call this, so
+-- the two flows can never drift. Not executable by any API role: only the
+-- SECURITY DEFINER flows around it reach it.
+CREATE OR REPLACE FUNCTION generate_sales_identity(p_user_id UUID, p_email TEXT)
+RETURNS TABLE (sales_code TEXT, username TEXT) AS $$
+DECLARE
+  v_sales_code TEXT;
+  v_username TEXT;
+  v_username_base TEXT;
+BEGIN
+  -- Derived from the (unique) user id, so it is collision-free.
+  v_sales_code := 'SL-' || upper(replace(p_user_id::text, '-', ''));
+
+  v_username_base := lower(regexp_replace(
+    split_part(COALESCE(p_email, ''), '@', 1),
+    '[^a-z0-9._-]', '', 'g'
+  ));
+  IF v_username_base IS NULL OR v_username_base = '' THEN
+    v_username_base := 'user';
+  END IF;
+  v_username := v_username_base || '-' || substr(replace(p_user_id::text, '-', ''), 1, 8);
+  -- The id-derived suffix is unique in practice; loop guards the race.
+  WHILE EXISTS (SELECT 1 FROM sales WHERE sales.username = v_username) LOOP
+    v_username := v_username_base || '-' || substr(md5(random()::text || clock_timestamp()::text), 1, 8);
+  END LOOP;
+
+  RETURN QUERY SELECT v_sales_code, v_username;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL ON FUNCTION generate_sales_identity(UUID, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION generate_sales_identity(UUID, TEXT) FROM anon;
+REVOKE ALL ON FUNCTION generate_sales_identity(UUID, TEXT) FROM authenticated;
+
 -- =================================
 -- 6. Signup trigger: profile + auto sales row for owner-capable roles
 -- =================================
@@ -248,7 +272,8 @@ DECLARE
   new_role TEXT;
   v_sales_code TEXT;
   v_username TEXT;
-  v_username_base TEXT;
+  v_gen_sales_code TEXT;
+  v_gen_username TEXT;
 BEGIN
   -- Create profile (safe: ON CONFLICT handles duplicates)
   INSERT INTO public.profiles (id, full_name)
@@ -264,25 +289,14 @@ BEGIN
   IF new_role IN ('sales', 'manager') THEN
     -- Keep supplied metadata byte-for-byte; generate what is missing.
     v_sales_code := NULLIF(NEW.raw_user_meta_data ->> 'sales_code', '');
-    IF v_sales_code IS NULL THEN
-      -- Derived from the (unique) user id, so it is collision-free.
-      v_sales_code := 'SL-' || upper(replace(NEW.id::text, '-', ''));
-    END IF;
-
     v_username := NULLIF(NEW.raw_user_meta_data ->> 'username', '');
-    IF v_username IS NULL THEN
-      v_username_base := lower(regexp_replace(
-        split_part(COALESCE(NEW.email, ''), '@', 1),
-        '[^a-z0-9._-]', '', 'g'
-      ));
-      IF v_username_base IS NULL OR v_username_base = '' THEN
-        v_username_base := 'user';
-      END IF;
-      v_username := v_username_base || '-' || substr(replace(NEW.id::text, '-', ''), 1, 8);
-      -- The id-derived suffix is unique in practice; loop guards the race.
-      WHILE EXISTS (SELECT 1 FROM sales WHERE username = v_username) LOOP
-        v_username := v_username_base || '-' || substr(md5(random()::text || clock_timestamp()::text), 1, 8);
-      END LOOP;
+    IF v_sales_code IS NULL OR v_username IS NULL THEN
+      -- Both flows share one generator: generate_sales_identity().
+      SELECT g.sales_code, g.username
+        INTO v_gen_sales_code, v_gen_username
+        FROM generate_sales_identity(NEW.id, NEW.email) g;
+      v_sales_code := COALESCE(v_sales_code, v_gen_sales_code);
+      v_username := COALESCE(v_username, v_gen_username);
     END IF;
 
     INSERT INTO public.sales (user_id, sales_code, full_name, username, email, status)
@@ -862,7 +876,7 @@ DECLARE
   v_current_role TEXT;
   v_owned INTEGER;
   v_username TEXT;
-  v_username_base TEXT;
+  v_sales_code TEXT;
   v_full_name TEXT;
   v_email TEXT;
 BEGIN
@@ -936,30 +950,22 @@ BEGIN
       IF NOT EXISTS (
         SELECT 1 FROM sales WHERE user_id = p_user_id AND deleted_at IS NULL
       ) THEN
-        -- Fresh row, mirroring the signup trigger's generation rules.
+        -- Fresh row: same generator the signup trigger calls, so the
+        -- generation rules live in exactly one place.
         SELECT COALESCE(p.full_name, u.raw_user_meta_data ->> 'full_name', '')
           INTO v_full_name
           FROM auth.users u
           LEFT JOIN public.profiles p ON p.id = u.id
          WHERE u.id = p_user_id;
 
-        v_username_base := lower(regexp_replace(
-          split_part(COALESCE(v_email, ''), '@', 1),
-          '[^a-z0-9._-]', '', 'g'
-        ));
-        IF v_username_base IS NULL OR v_username_base = '' THEN
-          v_username_base := 'user';
-        END IF;
-        v_username := v_username_base || '-' || substr(replace(p_user_id::text, '-', ''), 1, 8);
-        -- The id-derived suffix is unique in practice; loop guards the race.
-        WHILE EXISTS (SELECT 1 FROM sales WHERE username = v_username) LOOP
-          v_username := v_username_base || '-' || substr(md5(random()::text || clock_timestamp()::text), 1, 8);
-        END LOOP;
+        SELECT g.sales_code, g.username
+          INTO v_sales_code, v_username
+          FROM generate_sales_identity(p_user_id, v_email) g;
 
         INSERT INTO sales (user_id, sales_code, full_name, username, email, status)
         VALUES (
           p_user_id,
-          'SL-' || upper(replace(p_user_id::text, '-', '')),
+          v_sales_code,
           v_full_name,
           v_username,
           COALESCE(v_email, ''),
@@ -1006,25 +1012,3 @@ BEGIN
   END LOOP;
 END;
 $$;
-
--- Older password-reset RPC, superseded by admin_reset_password above. Its
--- own admin check stays (it still works); the grant is limited to
--- authenticated so it is not PUBLIC-executable.
-CREATE OR REPLACE FUNCTION admin_reset_user_password(
-  target_user_id UUID,
-  new_password TEXT
-)
-RETURNS VOID AS $$
-BEGIN
-  IF get_user_role() != 'admin' THEN
-    RAISE EXCEPTION 'Only admin can reset passwords';
-  END IF;
-
-  UPDATE auth.users
-  SET encrypted_password = crypt(new_password, gen_salt('bf'))
-  WHERE id = target_user_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
-REVOKE ALL ON FUNCTION admin_reset_user_password(UUID, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION admin_reset_user_password(UUID, TEXT) TO authenticated;
