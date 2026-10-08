@@ -5,6 +5,7 @@ import type { Customer, CustomerWithCounts, SoftDeletable } from '@/types';
 import { coerceUserRole, isSalesRole } from '@/lib/roles';
 import { enrichCustomers } from '@/services/enrichment';
 import { salesService } from '@/services/sales.service';
+import { CUSTOMER_STATUS_ACTIVE } from '@/lib/status';
 
 /**
  * Creation input: every column except the generated/system ones. `sales_id`
@@ -112,7 +113,7 @@ export const customerService = {
       .from('customers')
       .select('*')
       .is('deleted_at', null)
-      .eq('status', 'active');
+      .eq('status', CUSTOMER_STATUS_ACTIVE);
     if (salesId) query = query.eq('sales_id', salesId);
 
     const { data, error } = await query.order('created_at', { ascending: false });

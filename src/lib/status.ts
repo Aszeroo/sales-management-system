@@ -11,6 +11,13 @@ export type CustomerStatus = (typeof CUSTOMER_STATUSES)[number];
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 export type StatusKey = CustomerStatus | ProjectStatus;
 
+/**
+ * The "live" Customer status — the one value services filter on when they
+ * mean "not parked" (issue #23): even single status strings come from this
+ * module, so there is no second copy of the vocabulary in a query.
+ */
+export const CUSTOMER_STATUS_ACTIVE: CustomerStatus = 'active';
+
 /** i18n key per status — both locale files already ship every key. */
 export const STATUS_I18N_KEYS: Record<StatusKey, string> = {
   active: 'common.active',
